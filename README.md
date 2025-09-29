@@ -6,9 +6,9 @@ Git worktree power tool, re-implemented in Go to mirror the existing fish functi
 
 前提
 
-- Go 1.21+
+- Go 1.24+
 - Git
-- インタラクティブ選択は内蔵UI（promptui）で動作します。追加の外部ツールは不要です。
+- インタラクティブ選択は内蔵UI（go-fuzzyfinder）で動作します。追加の外部ツールは不要です。
 
 インストール（スクリプトのみ）
 
