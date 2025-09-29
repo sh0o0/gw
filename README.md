@@ -4,9 +4,35 @@ Git worktree power tool, re-implemented in Go to mirror the existing fish functi
 
 ## Install
 
-Build the binary:
+前提
 
-- With Go toolchain: `go build ./cmd/gw`
+- Go 1.21+
+- Git
+- 任意: fzf（インタラクティブ選択で使用。`gw switch`, `gw remove`）
+
+macOS (Homebrew):
+
+```fish
+# 任意の依存
+brew install fzf
+```
+
+インストール（スクリプトのみ）
+
+```fish
+# リポジトリを取得
+git clone https://github.com/sh0o0/gw.git
+cd gw
+
+# デフォルト: ~/.local/bin/gw にインストール
+sh scripts/install.sh
+
+# インストール先を変えたい場合（例: /usr/local）
+env PREFIX=/usr/local sh scripts/install.sh
+
+# 動作確認
+gw --help
+```
 
 ## Usage
 
