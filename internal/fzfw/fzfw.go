@@ -34,6 +34,13 @@ func Select(prompt string, items []string) (string, error) {
 	w.Flush()
 	in.Close()
 	if err := cmd.Wait(); err != nil {
+		// Check if the error is due to user cancellation (Ctrl+C)
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			if exitErr.ExitCode() == 130 {
+				// User cancelled with Ctrl+C, return empty string without error
+				return "", nil
+			}
+		}
 		return "", err
 	}
 	s := out.String()
