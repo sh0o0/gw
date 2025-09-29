@@ -38,4 +38,18 @@ gw --help
 - `gw prune`
 - `gw remove [--force] [branch ...]`
 
-Note: Changing directories from a child process cannot affect your shell session. This CLI prints the target path to stdout on switch/checkout/restore; combine with a shell wrapper to `cd $(gw switch ...)` as needed.
+Note: Changing directories from a child process cannot affect your shell session. Use `gw shell-init` to install a wrapper that updates your shell automatically, or combine with `cd $(gw switch ...)` if you prefer manual control.
+
+## Shell integration
+
+Fish:
+
+```fish
+source (gw shell-init fish | psub)
+```
+
+Bash / Zsh:
+
+```bash
+eval "$(gw shell-init bash)"
+```

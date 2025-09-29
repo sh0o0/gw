@@ -13,8 +13,8 @@ import (
 // Cmd runs a git command in cwd (empty means current) and returns stdout as string.
 func Cmd(cwd string, args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
-	if cwd != "" {
-		cmd.Dir = cwd
+	if dir := effectiveCWD(cwd); dir != "" {
+		cmd.Dir = dir
 	}
 	var out bytes.Buffer
 	var errb bytes.Buffer
@@ -27,6 +27,21 @@ func Cmd(cwd string, args ...string) (string, error) {
 		return "", fmt.Errorf("git %v failed: %w", args, err)
 	}
 	return out.String(), nil
+}
+
+func effectiveCWD(cwd string) string {
+	if cwd != "" {
+		return cwd
+	}
+	if env := os.Getenv("GW_CALLER_CWD"); env != "" {
+		if filepath.IsAbs(env) {
+			return filepath.Clean(env)
+		}
+		if abs, err := filepath.Abs(env); err == nil {
+			return abs
+		}
+	}
+	return ""
 }
 
 func InRepo(cwd string) bool {

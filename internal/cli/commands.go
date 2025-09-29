@@ -228,12 +228,28 @@ func primaryWorktreePath() (string, error) {
 	return "", errors.New("primary worktree not found")
 }
 
+func callerCWD() (string, error) {
+	if v := os.Getenv("GW_CALLER_CWD"); v != "" {
+		if filepath.IsAbs(v) {
+			return filepath.Clean(v), nil
+		}
+		if abs, err := filepath.Abs(v); err == nil {
+			return abs, nil
+		}
+		return "", fmt.Errorf("invalid GW_CALLER_CWD: %s", v)
+	}
+	return os.Getwd()
+}
+
 func relativePathFromGitRoot() (string, error) {
 	root, err := gitx.Root("")
 	if err != nil {
 		return "", err
 	}
-	cwd, _ := os.Getwd()
+	cwd, err := callerCWD()
+	if err != nil {
+		return "", err
+	}
 	if strings.HasPrefix(cwd, root+string(os.PathSeparator)) {
 		rel, _ := filepath.Rel(root, cwd)
 		if rel == "." {
