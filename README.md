@@ -8,14 +8,7 @@ Git worktree power tool, re-implemented in Go to mirror the existing fish functi
 
 - Go 1.21+
 - Git
-- 任意: fzf（インタラクティブ選択で使用。`gw switch`, `gw remove`）
-
-macOS (Homebrew):
-
-```fish
-# 任意の依存
-brew install fzf
-```
+- インタラクティブ選択は内蔵UI（promptui）で動作します。追加の外部ツールは不要です。
 
 インストール（スクリプトのみ）
 

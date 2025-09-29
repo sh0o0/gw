@@ -1,55 +1,51 @@
 package fzfw
 
 import (
-	"bufio"
-	"bytes"
 	"errors"
-	"os/exec"
+	"strings"
+
+	"github.com/lithammer/fuzzysearch/fuzzy"
+	"github.com/manifoldco/promptui"
 )
 
-// Select runs fzf with given prompt and returns the selected line or empty if cancelled.
+var errNoItems = errors.New("no items")
+
+// Select presents an interactive fuzzy picker backed by promptui.
 func Select(prompt string, items []string) (string, error) {
 	if len(items) == 0 {
-		return "", errors.New("no items")
+		return "", errNoItems
 	}
-	path, err := exec.LookPath("fzf")
-	if err != nil {
-		return "", errors.New("fzf not found")
-	}
-	cmd := exec.Command(path, "--prompt="+prompt)
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	in, err := cmd.StdinPipe()
-	if err != nil {
-		return "", err
-	}
-	if err := cmd.Start(); err != nil {
-		return "", err
-	}
-	w := bufio.NewWriter(in)
-	for _, it := range items {
-		w.WriteString(it)
-		w.WriteByte('\n')
-	}
-	w.Flush()
-	in.Close()
-	if err := cmd.Wait(); err != nil {
-		// Check if the error is due to user cancellation (Ctrl+C)
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			if exitErr.ExitCode() == 130 {
-				// User cancelled with Ctrl+C, return empty string without error
-				return "", nil
+
+	label := strings.TrimSpace(prompt)
+	selector := promptui.Select{
+		Label:             label,
+		Items:             items,
+		Size:              promptSize(len(items)),
+		StartInSearchMode: true,
+		Searcher: func(input string, index int) bool {
+			item := items[index]
+			if input == "" {
+				return true
 			}
+			return fuzzy.MatchNormalizedFold(input, item)
+		},
+	}
+
+	_, result, err := selector.Run()
+	if err != nil {
+		if errors.Is(err, promptui.ErrInterrupt) || errors.Is(err, promptui.ErrEOF) {
+			return "", nil
 		}
 		return "", err
 	}
-	s := out.String()
-	if len(s) == 0 {
-		return "", nil
+
+	return result, nil
+}
+
+func promptSize(count int) int {
+	const maxSize = 12
+	if count < maxSize {
+		return count
 	}
-	// trim trailing newline
-	if s[len(s)-1] == '\n' {
-		s = s[:len(s)-1]
-	}
-	return s, nil
+	return maxSize
 }
