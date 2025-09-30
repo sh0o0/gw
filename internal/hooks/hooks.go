@@ -24,7 +24,12 @@ func RunHook(dir, name string, env map[string]string, args ...string) (ran bool,
 	}
 	run := func(path string) error {
 		cmd := exec.Command(path, args...)
-		cmd.Dir = dir
+		// Prefer explicit hook working directory if provided; fallback to hooks dir
+		if wd := env["GW_HOOK_CWD"]; wd != "" {
+			cmd.Dir = wd
+		} else {
+			cmd.Dir = dir
+		}
 		cmd.Env = os.Environ()
 		for k, v := range env {
 			cmd.Env = append(cmd.Env, k+"="+v)

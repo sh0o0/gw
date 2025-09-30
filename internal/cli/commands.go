@@ -110,7 +110,15 @@ func newCheckoutCmd() *cobra.Command {
 			branch := args[0]
 			path, err := gitx.FindWorktreeByBranch("", branch)
 			if err == nil && path != "" {
-				return switchToPath(path)
+				if err := switchToPath(path); err != nil {
+					return err
+				}
+				// trigger post-checkout for existing worktree switch
+				newRev, _ := gitx.Cmd(path, "rev-parse", "--verify", "HEAD")
+				newRev = strings.TrimSpace(newRev)
+				newBranch, _ := gitx.BranchAt(path)
+				runPostCheckoutWithCWD(prevRev, newRev, prevBranch, newBranch, path)
+				return nil
 			}
 			// create new worktree
 			p, err := worktree.ComputeWorktreePath("", branch)
@@ -127,7 +135,7 @@ func newCheckoutCmd() *cobra.Command {
 			newRev, _ := gitx.Cmd(p, "rev-parse", "--verify", "HEAD")
 			newRev = strings.TrimSpace(newRev)
 			newBranch, _ := gitx.BranchAt(p)
-			runPostCheckout(prevRev, newRev, prevBranch, newBranch)
+			runPostCheckoutWithCWD(prevRev, newRev, prevBranch, newBranch, p)
 			return nil
 		},
 	}
@@ -195,13 +203,13 @@ func newRemoveCmd() *cobra.Command {
 				for _, b := range args {
 					if err := removeWorktreeByBranch(b, force); err != nil {
 						failed = append(failed, b)
-						fmt.Printf("✗ Failed to remove worktree for branch: %s\n\n", b)
+						fmt.Fprintf(os.Stderr, "✗ Failed to remove worktree for branch: %s\n\n", b)
 					} else {
 						success++
-						fmt.Printf("✓ Successfully removed worktree for branch: %s\n\n", b)
+						fmt.Fprintf(os.Stderr, "✓ Successfully removed worktree for branch: %s\n\n", b)
 					}
 				}
-				fmt.Printf("Summary:\n  Successfully removed: %d worktree(s)\n", success)
+				fmt.Fprintf(os.Stderr, "Summary:\n  Successfully removed: %d worktree(s)\n", success)
 				if len(failed) > 0 {
 					return fmt.Errorf("failed branches: %s", strings.Join(failed, ", "))
 				}
@@ -348,7 +356,7 @@ func switchToBranch(branch string) error {
 
 func removeWorktreeAtPath(path string, force bool) error {
 	br, _ := gitx.BranchAt(path)
-	fmt.Printf("Removing worktree: %s\n", path)
+	fmt.Fprintf(os.Stderr, "Removing worktree: %s\n", path)
 	if force {
 		if _, err := gitx.Cmd("", "worktree", "remove", "--force", path); err != nil {
 			return err
@@ -359,11 +367,11 @@ func removeWorktreeAtPath(path string, force bool) error {
 		}
 	}
 	if br != "" && br != "HEAD" {
-		fmt.Printf("Deleting branch: %s\n", br)
+		fmt.Fprintf(os.Stderr, "Deleting branch: %s\n", br)
 		if _, err := gitx.Cmd("", "branch", "-D", br); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: Failed to delete branch: %s\n", br)
 		} else {
-			fmt.Printf("Successfully deleted branch: %s\n", br)
+			fmt.Fprintf(os.Stderr, "Successfully deleted branch: %s\n", br)
 		}
 	}
 	return nil
@@ -426,6 +434,27 @@ func runPostCheckout(prevRev, newRev, prevBranch, newBranch string) {
 		"GW_HOOK_NAME":   "post-checkout",
 		"GW_PREV_BRANCH": prevBranch,
 		"GW_NEW_BRANCH":  newBranch,
+	}
+	if ran, err := hooks.RunHook(d, "post-checkout", env, prevRev, newRev, "1"); ran {
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Warning: post-checkout hook completed with errors")
+		} else {
+			fmt.Fprintln(os.Stderr, "post-checkout hook executed")
+		}
+	}
+}
+
+// runPostCheckoutWithCWD is like runPostCheckout but ensures hooks run with working directory
+// set to the target worktree path, so package managers (e.g., pnpm) operate on that tree.
+func runPostCheckoutWithCWD(prevRev, newRev, prevBranch, newBranch, worktreePath string) {
+	gitRoot, _ := gitx.Root("")
+	primary, _ := primaryWorktreePath()
+	d := hooks.HooksDir(primary, gitRoot)
+	env := map[string]string{
+		"GW_HOOK_NAME":   "post-checkout",
+		"GW_PREV_BRANCH": prevBranch,
+		"GW_NEW_BRANCH":  newBranch,
+		"GW_HOOK_CWD":    worktreePath,
 	}
 	if ran, err := hooks.RunHook(d, "post-checkout", env, prevRev, newRev, "1"); ran {
 		if err != nil {
