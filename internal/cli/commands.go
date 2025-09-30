@@ -431,7 +431,7 @@ func runPostCheckout(prevRev, newRev, prevBranch, newBranch string) {
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "Warning: post-checkout hook completed with errors")
 		} else {
-			fmt.Println("post-checkout hook executed")
+			fmt.Fprintln(os.Stderr, "post-checkout hook executed")
 		}
 	}
 }

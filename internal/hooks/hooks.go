@@ -29,7 +29,8 @@ func RunHook(dir, name string, env map[string]string, args ...string) (ran bool,
 		for k, v := range env {
 			cmd.Env = append(cmd.Env, k+"="+v)
 		}
-		cmd.Stdout = os.Stdout
+		// Send hook outputs to stderr so gw stdout remains reserved for machine-readable values (e.g., cd target path).
+		cmd.Stdout = os.Stderr
 		cmd.Stderr = os.Stderr
 		cmd.Stdin = os.Stdin
 		return cmd.Run()
