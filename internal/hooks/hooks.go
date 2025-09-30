@@ -31,6 +31,7 @@ func RunHook(dir, name string, env map[string]string, args ...string) (ran bool,
 		}
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
+		cmd.Stdin = os.Stdin
 		return cmd.Run()
 	}
 	hook := filepath.Join(dir, name)
