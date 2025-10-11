@@ -20,6 +20,8 @@ func SymlinkPatterns() []string {
 		"**/.github/prompts/*.local.prompt.md",
 		"**/.ignored/**",
 		"**/.serena/**",
+		"**/CLAUDE.local.md",
+		"**/AGENTS.local.md",
 	}
 }
 
@@ -149,6 +151,7 @@ func CreateSymlinksFromGitignored(root, target string) (int, error) {
 		if err := fsutil.CreateSymlink(src, dst); err != nil {
 			return count, err
 		}
+		fmt.Fprintf(os.Stderr, "Created symlink: %s -> %s\n", dst, src)
 		count++
 	}
 	return count, nil
