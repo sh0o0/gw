@@ -1,8 +1,12 @@
 package worktree
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/sh0o0/gw/internal/fsutil"
 )
 
 func TestParseRemoteURL_should_handle_formats(t *testing.T) {
@@ -37,6 +41,70 @@ func TestMatchPatterns_when_expected(t *testing.T) {
 	}
 	if shouldExclude("node_modules/foo") == false {
 		t.Fatalf("expected node_modules to be excluded")
+	}
+}
+
+func TestCreateSymlink_should_resolve_symlink_chain(t *testing.T) {
+	// Arrange
+	tmpDir := t.TempDir()
+
+	// Create actual file
+	actualFile := filepath.Join(tmpDir, "actual.txt")
+	if err := os.WriteFile(actualFile, []byte("content"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create first symlink pointing to actual file
+	firstSymlink := filepath.Join(tmpDir, "first.txt")
+	if err := os.Symlink(actualFile, firstSymlink); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create second symlink pointing to first symlink
+	secondSymlink := filepath.Join(tmpDir, "second.txt")
+	if err := os.Symlink(firstSymlink, secondSymlink); err != nil {
+		t.Fatal(err)
+	}
+
+	// Act: Create a new symlink using CreateSymlink with secondSymlink as source
+	// This simulates what happens when we resolve symlink chains
+	resolved, err := filepath.EvalSymlinks(secondSymlink)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	newSymlink := filepath.Join(tmpDir, "new.txt")
+	if err := fsutil.CreateSymlink(resolved, newSymlink); err != nil {
+		t.Fatal(err)
+	}
+
+	// Assert: Verify that newSymlink points directly to actual file
+	target, err := os.Readlink(newSymlink)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Resolve both paths to handle symlinks in path (like /var -> /private/var on macOS)
+	resolvedTarget, err := filepath.EvalSymlinks(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolvedActual, err := filepath.EvalSymlinks(actualFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if resolvedTarget != resolvedActual {
+		t.Errorf("expected symlink to point to %s, got %s", resolvedActual, resolvedTarget)
+	}
+
+	// Verify content is accessible
+	content, err := os.ReadFile(newSymlink)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != "content" {
+		t.Errorf("expected content 'content', got '%s'", string(content))
 	}
 }
 

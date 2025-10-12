@@ -148,10 +148,18 @@ func CreateSymlinksFromGitignored(root, target string) (int, error) {
 		if _, err := os.Lstat(src); err != nil {
 			continue
 		}
-		if err := fsutil.CreateSymlink(src, dst); err != nil {
+
+		// Resolve symlink chain to get the actual file
+		actualSrc, err := filepath.EvalSymlinks(src)
+		if err != nil {
+			// If we can't resolve, use the original src
+			actualSrc = src
+		}
+
+		if err := fsutil.CreateSymlink(actualSrc, dst); err != nil {
 			return count, err
 		}
-		fmt.Fprintf(os.Stderr, "Created symlink: %s -> %s\n", dst, src)
+		fmt.Fprintf(os.Stderr, "Created symlink: %s -> %s\n", dst, actualSrc)
 		count++
 	}
 	return count, nil
