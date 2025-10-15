@@ -25,7 +25,7 @@ func SymlinkPatterns() []string {
 	}
 }
 
-func ExcludePatterns() []string { return []string{"**/node_modules/*"} }
+func ExcludePatterns() []string { return []string{"**/node_modules/**"} }
 
 func shouldExclude(path string) bool {
 	for _, p := range ExcludePatterns() {
