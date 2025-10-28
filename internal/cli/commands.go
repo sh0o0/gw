@@ -85,9 +85,10 @@ func newUnlinkCmd() *cobra.Command {
 
 func newSwitchCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "switch [branch]",
-		Short: "Fuzzy search and cd to worktree or switch directly by branch",
-		Args:  cobra.MaximumNArgs(1),
+		Use:     "switch [branch]",
+		Short:   "Fuzzy search and cd to worktree or switch directly by branch",
+		Aliases: []string{"sw"},
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 1 {
 				return switchToBranch(args[0])
@@ -99,9 +100,10 @@ func newSwitchCmd() *cobra.Command {
 
 func newCheckoutCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "checkout <branch>",
-		Short: "Switch to existing worktree or create new one for branch",
-		Args:  cobra.ExactArgs(1),
+		Use:     "checkout <branch>",
+		Short:   "Switch to existing worktree or create new one for branch",
+		Aliases: []string{"co"},
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			prevRev, _ := gitx.Cmd("", "rev-parse", "--verify", "HEAD")
 			prevRev = strings.TrimSpace(prevRev)
@@ -193,8 +195,9 @@ func newPruneCmd() *cobra.Command {
 func newRemoveCmd() *cobra.Command {
 	var force bool
 	cmd := &cobra.Command{
-		Use:   "remove [--force] [branch ...]",
-		Short: "Remove worktree(s) by fuzzy select or by branch names",
+		Use:     "remove [--force] [branch ...]",
+		Short:   "Remove worktree(s) by fuzzy select or by branch names",
+		Aliases: []string{"rm"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				// remove multiple by branch
