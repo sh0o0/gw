@@ -34,3 +34,21 @@ func TestBuildShellInitScriptUnsupported(t *testing.T) {
 		t.Fatal("expected error for unsupported shell")
 	}
 }
+
+func TestShellInitContainsAliases(t *testing.T) {
+	fish, err := buildShellInitScript("fish")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(fish, "case switch sw checkout co restore") {
+		t.Fatalf("fish script should handle aliases 'sw' and 'co'")
+	}
+
+	bash, err := buildShellInitScript("bash")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(bash, "switch|sw|checkout|co|restore") {
+		t.Fatalf("bash script should handle aliases 'sw' and 'co'")
+	}
+}
