@@ -7,15 +7,19 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/sh0o0/gw/internal/fsutil"
-	"github.com/sh0o0/gw/internal/fzfw"
 	"github.com/sh0o0/gw/internal/gitx"
 	"github.com/sh0o0/gw/internal/hooks"
 	"github.com/sh0o0/gw/internal/worktree"
 	"github.com/spf13/cobra"
+
+	fuzzyfinder "github.com/ktr0731/go-fuzzyfinder"
 )
 
 func newLinkCmd() *cobra.Command {
@@ -438,30 +442,36 @@ func switchInteractive(excludeCurrent bool) error {
 		return err
 	}
 	current, _ := gitx.CurrentWorktreePath("")
+	entries := buildWorktreeEntries(wts, func(wt gitx.Worktree) bool {
+		return excludeCurrent && wt.Path == current
+	})
+	if len(entries) == 0 {
+		return errors.New("no worktrees available for selection")
+	}
+	collection := newWorktreeCollection(entries)
 	root, err := gitx.Root("")
 	if err != nil {
 		root = ""
 	}
 	resolver := gitx.NewBranchStatusResolver(root)
-	display, paths, err := prepareWorktreeSelection(wts, func(wt gitx.Worktree) bool {
-		return excludeCurrent && wt.Path == current
-	}, resolver)
+	startWorktreeStatusLoader(collection, resolver)
+	idx, err := fuzzyfinder.Find(&collection.slice, func(i int) string {
+		return collection.itemString(i)
+	},
+		fuzzyfinder.WithPromptString("Select worktree: "),
+		fuzzyfinder.WithHotReloadLock(&collection.lock),
+	)
 	if err != nil {
-		return err
-	}
-	if len(display) == 0 {
-		return errors.New("no worktrees available for selection")
-	}
-	sel, err := fzfw.Select("Select worktree: ", display)
-	if err != nil {
-		return err
-	}
-	for i, d := range display {
-		if d == sel {
-			return switchToPath(paths[i])
+		if errors.Is(err, fuzzyfinder.ErrAbort) {
+			return errors.New("selection cancelled")
 		}
+		return err
 	}
-	return errors.New("selection cancelled")
+	entry, ok := collection.entryByIndex(idx)
+	if !ok {
+		return errors.New("selection cancelled")
+	}
+	return switchToPath(entry.path)
 }
 
 func switchToBranch(branch string) error {
@@ -472,15 +482,20 @@ func switchToBranch(branch string) error {
 	return switchToPath(p)
 }
 
-type worktreeOption struct {
+const (
+	statusColumnWidth    = len("IN PROGRESS")
+	loadingStatusDisplay = "LOADING"
+)
+
+type worktreeEntry struct {
 	branch    string
-	path      string
 	rawBranch string
-	status    gitx.BranchStatus
+	path      string
+	status    atomic.Value
 }
 
-func prepareWorktreeSelection(wts []gitx.Worktree, skip func(gitx.Worktree) bool, resolver *gitx.BranchStatusResolver) ([]string, []string, error) {
-	entries := make([]*worktreeOption, 0, len(wts))
+func buildWorktreeEntries(wts []gitx.Worktree, skip func(gitx.Worktree) bool) []*worktreeEntry {
+	entries := make([]*worktreeEntry, 0, len(wts))
 	for _, wt := range wts {
 		if skip != nil && skip(wt) {
 			continue
@@ -489,75 +504,133 @@ func prepareWorktreeSelection(wts []gitx.Worktree, skip func(gitx.Worktree) bool
 		if branchLabel == "" || branchLabel == "HEAD" {
 			branchLabel = "(detached)"
 		}
-		entries = append(entries, &worktreeOption{
+		initial := ""
+		if wt.Branch != "" && wt.Branch != "HEAD" {
+			initial = loadingStatusDisplay
+		}
+		entry := &worktreeEntry{
 			branch:    branchLabel,
-			path:      wt.Path,
 			rawBranch: wt.Branch,
-		})
-	}
-	if resolver != nil {
-		if err := populateWorktreeStatuses(entries, resolver); err != nil {
-			return nil, nil, err
+			path:      wt.Path,
 		}
+		entry.status.Store(initial)
+		entries = append(entries, entry)
 	}
-	maxStatusLen := 0
-	for _, entry := range entries {
-		if l := len(entry.status.Display()); l > maxStatusLen {
-			maxStatusLen = l
-		}
-	}
-	display := make([]string, len(entries))
-	paths := make([]string, len(entries))
-	for i, entry := range entries {
-		if maxStatusLen > 0 {
-			display[i] = fmt.Sprintf("[%s]  %-*s %s", entry.branch, maxStatusLen, entry.status.Display(), entry.path)
-		} else {
-			display[i] = fmt.Sprintf("[%s]  %s", entry.branch, entry.path)
-		}
-		paths[i] = entry.path
-	}
-	return display, paths, nil
+	return entries
 }
 
-func populateWorktreeStatuses(entries []*worktreeOption, resolver *gitx.BranchStatusResolver) error {
-	targets := make([]*worktreeOption, 0, len(entries))
-	for _, entry := range entries {
-		if entry.rawBranch == "" || entry.rawBranch == "HEAD" {
-			continue
+func (e *worktreeEntry) display() string {
+	status := ""
+	if v := e.status.Load(); v != nil {
+		status = v.(string)
+	}
+	return fmt.Sprintf("[%s]  %-*s %s", e.branch, statusColumnWidth, status, e.path)
+}
+
+type worktreeCollection struct {
+	base    []*worktreeEntry
+	slice   []*worktreeEntry
+	lock    sync.Mutex
+	toggled bool
+}
+
+func newWorktreeCollection(entries []*worktreeEntry) *worktreeCollection {
+	base := append([]*worktreeEntry(nil), entries...)
+	slice := append([]*worktreeEntry(nil), entries...)
+	return &worktreeCollection{
+		base:  base,
+		slice: slice,
+	}
+}
+
+func (c *worktreeCollection) itemString(i int) string {
+	if i < len(c.base) {
+		return c.base[i].display()
+	}
+	return ""
+}
+
+func (c *worktreeCollection) entryByIndex(i int) (*worktreeEntry, bool) {
+	if i < len(c.base) {
+		return c.base[i], true
+	}
+	return nil, false
+}
+
+func (c *worktreeCollection) baseIndex(i int) (int, bool) {
+	if i < len(c.base) {
+		return i, true
+	}
+	return -1, false
+}
+
+func (c *worktreeCollection) triggerReload() {
+	c.lock.Lock()
+	if c.toggled {
+		c.lock.Unlock()
+		return
+	}
+	c.slice = append(c.slice, nil)
+	c.toggled = true
+	c.lock.Unlock()
+
+	go func() {
+		time.Sleep(60 * time.Millisecond)
+		c.lock.Lock()
+		c.slice = c.slice[:len(c.base)]
+		c.toggled = false
+		c.lock.Unlock()
+	}()
+}
+
+func (c *worktreeCollection) finalize() {
+	c.lock.Lock()
+	c.slice = c.slice[:len(c.base)]
+	c.toggled = false
+	c.lock.Unlock()
+}
+
+func startWorktreeStatusLoader(collection *worktreeCollection, resolver *gitx.BranchStatusResolver) {
+	if resolver == nil {
+		return
+	}
+	go func() {
+		limit := runtime.NumCPU()
+		if limit < 1 {
+			limit = 1
 		}
-		targets = append(targets, entry)
-	}
-	if len(targets) == 0 {
-		return nil
-	}
-	limit := runtime.NumCPU()
-	if limit > len(targets) {
-		limit = len(targets)
-	}
-	if limit < 1 {
-		limit = 1
-	}
-	sem := make(chan struct{}, limit)
-	var wg sync.WaitGroup
-	var once sync.Once
-	var firstErr error
-	for _, entry := range targets {
-		entry := entry
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-			status, err := resolver.Status(entry.path, entry.rawBranch)
-			if err != nil {
-				once.Do(func() { firstErr = err })
-				return
+		sem := make(chan struct{}, limit)
+		var wg sync.WaitGroup
+		for _, entry := range collection.base {
+			if entry.rawBranch == "" || entry.rawBranch == "HEAD" {
+				continue
 			}
-			entry.status = status
-		}()
-	}
-	wg.Wait()
-	return firstErr
+			entry := entry
+			wg.Add(1)
+			go func() {
+				sem <- struct{}{}
+				defer func() {
+					<-sem
+					wg.Done()
+				}()
+				status, err := resolver.Status(entry.path, entry.rawBranch)
+				if err != nil {
+					return
+				}
+				newStatus := status.Display()
+				current := ""
+				if v := entry.status.Load(); v != nil {
+					current, _ = v.(string)
+				}
+				if current != newStatus {
+					entry.status.Store(newStatus)
+					collection.triggerReload()
+				}
+			}()
+		}
+		wg.Wait()
+		collection.finalize()
+	}()
 }
 
 func removeWorktreeAtPath(path string, force bool) error {
@@ -590,36 +663,54 @@ func removeInteractive(force bool) error {
 		return err
 	}
 	current, _ := gitx.CurrentWorktreePath("")
+	entries := buildWorktreeEntries(wts, func(wt gitx.Worktree) bool {
+		return wt.Path == current
+	})
+	if len(entries) == 0 {
+		return errors.New("no worktrees available for selection")
+	}
+	collection := newWorktreeCollection(entries)
 	root, err := gitx.Root("")
 	if err != nil {
 		root = ""
 	}
 	resolver := gitx.NewBranchStatusResolver(root)
-	display, paths, err := prepareWorktreeSelection(wts, func(wt gitx.Worktree) bool {
-		return wt.Path == current
-	}, resolver)
+	startWorktreeStatusLoader(collection, resolver)
+	idxs, err := fuzzyfinder.FindMulti(&collection.slice, func(i int) string {
+		return collection.itemString(i)
+	},
+		fuzzyfinder.WithPromptString("Select worktree(s) to remove (TAB to mark, ENTER to confirm):"),
+		fuzzyfinder.WithHotReloadLock(&collection.lock),
+	)
 	if err != nil {
+		if errors.Is(err, fuzzyfinder.ErrAbort) {
+			return errors.New("selection cancelled")
+		}
 		return err
 	}
-	if len(display) == 0 {
-		return errors.New("no worktrees available for selection")
-	}
-	sels, err := fzfw.SelectMultiple("Select worktree(s) to remove (TAB to mark, ENTER to confirm):", display)
-	if err != nil {
-		return err
-	}
-	if len(sels) == 0 {
+	if len(idxs) == 0 {
 		return errors.New("selection cancelled")
 	}
-	indexMap := make(map[string]int, len(display))
-	for i, d := range display {
-		indexMap[d] = i
+	selectedIdx := make([]int, 0, len(idxs))
+	seen := make(map[int]struct{}, len(idxs))
+	for _, idx := range idxs {
+		if entryIdx, ok := collection.baseIndex(idx); ok {
+			if _, dup := seen[entryIdx]; dup {
+				continue
+			}
+			seen[entryIdx] = struct{}{}
+			selectedIdx = append(selectedIdx, entryIdx)
+		}
 	}
+	if len(selectedIdx) == 0 {
+		return errors.New("selection cancelled")
+	}
+	sort.Ints(selectedIdx)
 	success := 0
 	var failed []string
-	for _, sel := range sels {
-		idx := indexMap[sel]
-		path := paths[idx]
+	for _, idx := range selectedIdx {
+		e := collection.base[idx]
+		path := e.path
 		if err := removeWorktreeAtPath(path, force); err != nil {
 			failed = append(failed, path)
 			fmt.Fprintf(os.Stderr, "✗ Failed to remove worktree: %s\n  %v\n\n", path, err)
