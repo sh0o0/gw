@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -16,7 +17,8 @@ import (
 )
 
 func newSwitchCmd() *cobra.Command {
-	return &cobra.Command{
+	var opts fuzzyDisplayOptions
+	cmd := &cobra.Command{
 		Use:     "switch [branch]",
 		Short:   "Fuzzy search and cd to worktree or switch directly by branch",
 		Aliases: []string{"sw"},
@@ -25,12 +27,14 @@ func newSwitchCmd() *cobra.Command {
 			if len(args) == 1 {
 				return switchToBranch(args[0])
 			}
-			return switchInteractive(true)
+			return switchInteractive(true, opts)
 		},
 	}
+	cmd.Flags().BoolVar(&opts.showPath, "show-path", false, "display worktree path in fuzzy finder")
+	return cmd
 }
 
-func switchInteractive(excludeCurrent bool) error {
+func switchInteractive(excludeCurrent bool, opts fuzzyDisplayOptions) error {
 	wts, err := gitx.ListWorktrees("")
 	if err != nil {
 		return err
@@ -42,7 +46,7 @@ func switchInteractive(excludeCurrent bool) error {
 	if len(entries) == 0 {
 		return errors.New("no worktrees available for selection")
 	}
-	collection := newWorktreeCollection(entries)
+	collection := newWorktreeCollection(entries, opts)
 	root, err := gitx.Root("")
 	if err != nil {
 		root = ""
@@ -129,12 +133,41 @@ func buildWorktreeEntries(wts []gitx.Worktree, skip func(gitx.Worktree) bool) []
 	return entries
 }
 
-func (e *worktreeEntry) display() string {
+func (e *worktreeEntry) display(opts fuzzyDisplayOptions) string {
 	status := ""
 	if v := e.status.Load(); v != nil {
 		status = v.(string)
 	}
-	return fmt.Sprintf("[%s]  %-*s %s", e.branch, statusColumnWidth, status, e.path)
+	label := formatStatusLabel(status)
+
+	var b strings.Builder
+	b.WriteString("[")
+	b.WriteString(e.branch)
+	b.WriteString("]")
+
+	if label != "" || opts.showPath {
+		b.WriteString("  ")
+	}
+
+	if label != "" {
+		b.WriteString(label)
+	}
+
+	if opts.showPath {
+		if label != "" {
+			b.WriteByte(' ')
+		}
+		b.WriteString(e.path)
+	}
+
+	return b.String()
+}
+
+func formatStatusLabel(status string) string {
+	if status == "" {
+		return ""
+	}
+	return fmt.Sprintf("%-*s", statusColumnWidth, status)
 }
 
 type worktreeCollection struct {
@@ -142,20 +175,22 @@ type worktreeCollection struct {
 	slice   []*worktreeEntry
 	lock    sync.Mutex
 	toggled bool
+	options fuzzyDisplayOptions
 }
 
-func newWorktreeCollection(entries []*worktreeEntry) *worktreeCollection {
+func newWorktreeCollection(entries []*worktreeEntry, opts fuzzyDisplayOptions) *worktreeCollection {
 	base := append([]*worktreeEntry(nil), entries...)
 	slice := append([]*worktreeEntry(nil), entries...)
 	return &worktreeCollection{
-		base:  base,
-		slice: slice,
+		base:    base,
+		slice:   slice,
+		options: opts,
 	}
 }
 
 func (c *worktreeCollection) itemString(i int) string {
 	if i < len(c.base) {
-		return c.base[i].display()
+		return c.base[i].display(c.options)
 	}
 	return ""
 }

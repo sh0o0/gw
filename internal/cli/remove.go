@@ -15,6 +15,7 @@ import (
 
 func newRemoveCmd() *cobra.Command {
 	var force bool
+	var opts fuzzyDisplayOptions
 	cmd := &cobra.Command{
 		Use:     "remove [--force] [branch ...]",
 		Short:   "Remove worktree(s) by fuzzy select or by branch names",
@@ -38,10 +39,11 @@ func newRemoveCmd() *cobra.Command {
 				}
 				return nil
 			}
-			return removeInteractive(force)
+			return removeInteractive(force, opts)
 		},
 	}
 	cmd.Flags().BoolVar(&force, "force", false, "force remove")
+	cmd.Flags().BoolVar(&opts.showPath, "show-path", false, "display worktree path in fuzzy finder")
 	return cmd
 }
 
@@ -68,7 +70,7 @@ func removeWorktreeAtPath(path string, force bool) error {
 	return nil
 }
 
-func removeInteractive(force bool) error {
+func removeInteractive(force bool, opts fuzzyDisplayOptions) error {
 	wts, err := gitx.ListWorktrees("")
 	if err != nil {
 		return err
@@ -80,7 +82,7 @@ func removeInteractive(force bool) error {
 	if len(entries) == 0 {
 		return errors.New("no worktrees available for selection")
 	}
-	collection := newWorktreeCollection(entries)
+	collection := newWorktreeCollection(entries, opts)
 	root, err := gitx.Root("")
 	if err != nil {
 		root = ""
