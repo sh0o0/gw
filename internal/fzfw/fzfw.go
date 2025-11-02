@@ -2,6 +2,7 @@ package fzfw
 
 import (
 	"errors"
+	"sort"
 	"strings"
 
 	fuzzyfinder "github.com/ktr0731/go-fuzzyfinder"
@@ -36,4 +37,48 @@ func Select(prompt string, items []string) (string, error) {
 	}
 
 	return items[idx], nil
+}
+
+// SelectMultiple presents an interactive fuzzy picker that allows multi-selection.
+func SelectMultiple(prompt string, items []string) ([]string, error) {
+	if len(items) == 0 {
+		return nil, errNoItems
+	}
+
+	label := strings.TrimSpace(prompt)
+	options := make([]fuzzyfinder.Option, 0, 1)
+	if label != "" {
+		options = append(options, fuzzyfinder.WithPromptString(label))
+	}
+
+	idxs, err := fuzzyfinder.FindMulti(
+		items,
+		func(i int) string {
+			return items[i]
+		},
+		options...,
+	)
+	if err != nil {
+		if errors.Is(err, fuzzyfinder.ErrAbort) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if len(idxs) == 0 {
+		return nil, nil
+	}
+
+	sort.Ints(idxs)
+
+	selected := make([]string, 0, len(idxs))
+	prev := -1
+	for _, idx := range idxs {
+		if idx == prev {
+			continue
+		}
+		selected = append(selected, items[idx])
+		prev = idx
+	}
+
+	return selected, nil
 }

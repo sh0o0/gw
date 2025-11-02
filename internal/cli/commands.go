@@ -518,16 +518,35 @@ func removeInteractive(force bool) error {
 	if len(display) == 0 {
 		return errors.New("no worktrees available for selection")
 	}
-	sel, err := fzfw.Select("Select worktree to remove: ", display)
+	sels, err := fzfw.SelectMultiple("Select worktree(s) to remove (TAB to mark, ENTER to confirm):", display)
 	if err != nil {
 		return err
 	}
-	for i, d := range display {
-		if d == sel {
-			return removeWorktreeAtPath(paths[i], force)
-		}
+	if len(sels) == 0 {
+		return errors.New("selection cancelled")
 	}
-	return errors.New("selection cancelled")
+	indexMap := make(map[string]int, len(display))
+	for i, d := range display {
+		indexMap[d] = i
+	}
+	success := 0
+	var failed []string
+	for _, sel := range sels {
+		idx := indexMap[sel]
+		path := paths[idx]
+		if err := removeWorktreeAtPath(path, force); err != nil {
+			failed = append(failed, path)
+			fmt.Fprintf(os.Stderr, "✗ Failed to remove worktree: %s\n  %v\n\n", path, err)
+			continue
+		}
+		success++
+		fmt.Fprintf(os.Stderr, "✓ Successfully removed worktree: %s\n\n", path)
+	}
+	fmt.Fprintf(os.Stderr, "Summary:\n  Successfully removed: %d worktree(s)\n", success)
+	if len(failed) > 0 {
+		return fmt.Errorf("failed worktrees: %s", strings.Join(failed, ", "))
+	}
+	return nil
 }
 
 func removeWorktreeByBranch(branch string, force bool) error {
