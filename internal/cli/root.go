@@ -30,6 +30,7 @@ func newRootCmd() *cobra.Command {
 		newRestoreCmd(),
 		newListCmd(),
 		newPruneCmd(),
+		newMoveCmd(),
 		newRemoveCmd(),
 		newSyncCmd(),
 		newShellInitCmd(),

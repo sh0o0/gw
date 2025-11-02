@@ -36,6 +36,7 @@ gw --help
 - `gw restore <branch>`
 - `gw list`
 - `gw prune`
+- `gw move <old-branch> <new-branch>`
 - `gw remove [--force] [branch ...]`
 
 Note: Changing directories from a child process cannot affect your shell session. Use `gw shell-init` to install a wrapper that updates your shell automatically, or combine with `cd $(gw switch ...)` if you prefer manual control.
