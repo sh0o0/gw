@@ -6,7 +6,9 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/sh0o0/gw/internal/fsutil"
 	"github.com/sh0o0/gw/internal/fzfw"
@@ -435,19 +437,17 @@ func switchInteractive(excludeCurrent bool) error {
 	if err != nil {
 		return err
 	}
-	var display []string
-	var paths []string
 	current, _ := gitx.CurrentWorktreePath("")
-	for _, wt := range wts {
-		if excludeCurrent && wt.Path == current {
-			continue
-		}
-		b := wt.Branch
-		if b == "" {
-			b = "(detached)"
-		}
-		display = append(display, fmt.Sprintf("[%s]  %s", b, wt.Path))
-		paths = append(paths, wt.Path)
+	root, err := gitx.Root("")
+	if err != nil {
+		root = ""
+	}
+	resolver := gitx.NewBranchStatusResolver(root)
+	display, paths, err := prepareWorktreeSelection(wts, func(wt gitx.Worktree) bool {
+		return excludeCurrent && wt.Path == current
+	}, resolver)
+	if err != nil {
+		return err
 	}
 	if len(display) == 0 {
 		return errors.New("no worktrees available for selection")
@@ -470,6 +470,94 @@ func switchToBranch(branch string) error {
 		return fmt.Errorf("no worktree found for branch: %s", branch)
 	}
 	return switchToPath(p)
+}
+
+type worktreeOption struct {
+	branch    string
+	path      string
+	rawBranch string
+	status    gitx.BranchStatus
+}
+
+func prepareWorktreeSelection(wts []gitx.Worktree, skip func(gitx.Worktree) bool, resolver *gitx.BranchStatusResolver) ([]string, []string, error) {
+	entries := make([]*worktreeOption, 0, len(wts))
+	for _, wt := range wts {
+		if skip != nil && skip(wt) {
+			continue
+		}
+		branchLabel := wt.Branch
+		if branchLabel == "" || branchLabel == "HEAD" {
+			branchLabel = "(detached)"
+		}
+		entries = append(entries, &worktreeOption{
+			branch:    branchLabel,
+			path:      wt.Path,
+			rawBranch: wt.Branch,
+		})
+	}
+	if resolver != nil {
+		if err := populateWorktreeStatuses(entries, resolver); err != nil {
+			return nil, nil, err
+		}
+	}
+	maxStatusLen := 0
+	for _, entry := range entries {
+		if l := len(entry.status.Display()); l > maxStatusLen {
+			maxStatusLen = l
+		}
+	}
+	display := make([]string, len(entries))
+	paths := make([]string, len(entries))
+	for i, entry := range entries {
+		if maxStatusLen > 0 {
+			display[i] = fmt.Sprintf("[%s]  %-*s %s", entry.branch, maxStatusLen, entry.status.Display(), entry.path)
+		} else {
+			display[i] = fmt.Sprintf("[%s]  %s", entry.branch, entry.path)
+		}
+		paths[i] = entry.path
+	}
+	return display, paths, nil
+}
+
+func populateWorktreeStatuses(entries []*worktreeOption, resolver *gitx.BranchStatusResolver) error {
+	targets := make([]*worktreeOption, 0, len(entries))
+	for _, entry := range entries {
+		if entry.rawBranch == "" || entry.rawBranch == "HEAD" {
+			continue
+		}
+		targets = append(targets, entry)
+	}
+	if len(targets) == 0 {
+		return nil
+	}
+	limit := runtime.NumCPU()
+	if limit > len(targets) {
+		limit = len(targets)
+	}
+	if limit < 1 {
+		limit = 1
+	}
+	sem := make(chan struct{}, limit)
+	var wg sync.WaitGroup
+	var once sync.Once
+	var firstErr error
+	for _, entry := range targets {
+		entry := entry
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			status, err := resolver.Status(entry.path, entry.rawBranch)
+			if err != nil {
+				once.Do(func() { firstErr = err })
+				return
+			}
+			entry.status = status
+		}()
+	}
+	wg.Wait()
+	return firstErr
 }
 
 func removeWorktreeAtPath(path string, force bool) error {
@@ -501,19 +589,17 @@ func removeInteractive(force bool) error {
 	if err != nil {
 		return err
 	}
-	var display []string
-	var paths []string
 	current, _ := gitx.CurrentWorktreePath("")
-	for _, wt := range wts {
-		if wt.Path == current {
-			continue
-		}
-		b := wt.Branch
-		if b == "" {
-			b = "(detached)"
-		}
-		display = append(display, fmt.Sprintf("[%s]  %s", b, wt.Path))
-		paths = append(paths, wt.Path)
+	root, err := gitx.Root("")
+	if err != nil {
+		root = ""
+	}
+	resolver := gitx.NewBranchStatusResolver(root)
+	display, paths, err := prepareWorktreeSelection(wts, func(wt gitx.Worktree) bool {
+		return wt.Path == current
+	}, resolver)
+	if err != nil {
+		return err
 	}
 	if len(display) == 0 {
 		return errors.New("no worktrees available for selection")
