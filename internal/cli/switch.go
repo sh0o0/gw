@@ -40,9 +40,10 @@ func switchInteractive(excludeCurrent bool, opts fuzzyDisplayOptions) error {
 		return err
 	}
 	current, _ := gitx.CurrentWorktreePath("")
+	primaryPath, _ := primaryWorktreePath()
 	entries := buildWorktreeEntries(wts, func(wt gitx.Worktree) bool {
 		return excludeCurrent && wt.Path == current
-	})
+	}, primaryPath)
 	if len(entries) == 0 {
 		return errors.New("no worktrees available for selection")
 	}
@@ -105,10 +106,11 @@ type worktreeEntry struct {
 	branch    string
 	rawBranch string
 	path      string
+	isPrimary bool
 	status    atomic.Value
 }
 
-func buildWorktreeEntries(wts []gitx.Worktree, skip func(gitx.Worktree) bool) []*worktreeEntry {
+func buildWorktreeEntries(wts []gitx.Worktree, skip func(gitx.Worktree) bool, primaryPath string) []*worktreeEntry {
 	entries := make([]*worktreeEntry, 0, len(wts))
 	for _, wt := range wts {
 		if skip != nil && skip(wt) {
@@ -122,10 +124,15 @@ func buildWorktreeEntries(wts []gitx.Worktree, skip func(gitx.Worktree) bool) []
 		if wt.Branch != "" && wt.Branch != "HEAD" {
 			initial = loadingStatusDisplay
 		}
+		isPrimary := samePath(wt.Path, primaryPath)
+		if isPrimary {
+			initial = ""
+		}
 		entry := &worktreeEntry{
 			branch:    branchLabel,
 			rawBranch: wt.Branch,
 			path:      wt.Path,
+			isPrimary: isPrimary,
 		}
 		entry.status.Store(initial)
 		entries = append(entries, entry)
@@ -137,6 +144,9 @@ func (e *worktreeEntry) display(opts fuzzyDisplayOptions) string {
 	status := ""
 	if v := e.status.Load(); v != nil {
 		status = v.(string)
+	}
+	if e.isPrimary {
+		status = ""
 	}
 	label := formatStatusLabel(status)
 
@@ -247,6 +257,9 @@ func startWorktreeStatusLoader(collection *worktreeCollection, resolver *gitx.Br
 		sem := make(chan struct{}, limit)
 		var wg sync.WaitGroup
 		for _, entry := range collection.base {
+			if entry.isPrimary {
+				continue
+			}
 			if entry.rawBranch == "" || entry.rawBranch == "HEAD" {
 				continue
 			}

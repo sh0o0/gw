@@ -177,3 +177,25 @@ func FindWorktreeByBranch(cwd, branch string) (string, error) {
 	}
 	return "", fmt.Errorf("no worktree for branch %s", branch)
 }
+
+func MergedBranches(cwd string) ([]string, error) {
+	out, err := Cmd(cwd, "branch", "--merged")
+	if err != nil {
+		return nil, err
+	}
+	lines := strings.Split(out, "\n")
+	branches := make([]string, 0, len(lines))
+	for _, ln := range lines {
+		ln = strings.TrimSpace(ln)
+		if ln == "" {
+			continue
+		}
+		ln = strings.TrimLeft(ln, "*+ ")
+		ln = strings.TrimSpace(ln)
+		if ln == "" || ln == "(no branch)" {
+			continue
+		}
+		branches = append(branches, ln)
+	}
+	return branches, nil
+}

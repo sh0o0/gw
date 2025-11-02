@@ -144,6 +144,11 @@ func detectBaseRef(cwd string) string {
 	return ""
 }
 
+// isMergedIntoBase returns true if all commits on branch are already contained in baseRef.
+// It checks rev-list count of commits reachable from branch but not from baseRef.
+// Note: We intentionally do not infer MERGED purely from Git ancestry here.
+// Use gh PR status to mark MERGED; otherwise fall back to in-progress/not-started.
+
 func (s BranchStatus) String() string {
 	return string(s)
 }

@@ -81,3 +81,10 @@ func postCreateWorktree(p string) error {
 	rel, _ := relativePathFromGitRoot()
 	return navigateToRelativePath(p, rel)
 }
+
+func samePath(a, b string) bool {
+	if a == "" || b == "" {
+		return false
+	}
+	return filepath.Clean(a) == filepath.Clean(b)
+}
