@@ -111,8 +111,15 @@ type worktreeEntry struct {
 	assignees atomic.Value
 }
 
+type worktreeEntryBuilder struct {
+	entries      []*worktreeEntry
+	maxBranchLen int
+}
+
 func buildWorktreeEntries(wts []gitx.Worktree, skip func(gitx.Worktree) bool, primaryPath string) []*worktreeEntry {
-	entries := make([]*worktreeEntry, 0, len(wts))
+	builder := &worktreeEntryBuilder{
+		entries: make([]*worktreeEntry, 0, len(wts)),
+	}
 	for _, wt := range wts {
 		if skip != nil && skip(wt) {
 			continue
@@ -136,12 +143,25 @@ func buildWorktreeEntries(wts []gitx.Worktree, skip func(gitx.Worktree) bool, pr
 			isPrimary: isPrimary,
 		}
 		entry.status.Store(initial)
-		entries = append(entries, entry)
+		builder.entries = append(builder.entries, entry)
+		if len(branchLabel) > builder.maxBranchLen {
+			builder.maxBranchLen = len(branchLabel)
+		}
 	}
-	return entries
+	return builder.entries
 }
 
-func (e *worktreeEntry) display(opts fuzzyDisplayOptions) string {
+func calcMaxBranchLen(entries []*worktreeEntry) int {
+	maxLen := 0
+	for _, e := range entries {
+		if len(e.branch) > maxLen {
+			maxLen = len(e.branch)
+		}
+	}
+	return maxLen
+}
+
+func (e *worktreeEntry) display(opts fuzzyDisplayOptions, maxBranchLen int) string {
 	status := ""
 	if v := e.status.Load(); v != nil {
 		status = v.(string)
@@ -149,7 +169,6 @@ func (e *worktreeEntry) display(opts fuzzyDisplayOptions) string {
 	if e.isPrimary {
 		status = ""
 	}
-	label := formatStatusLabel(status)
 
 	assignees := ""
 	if v := e.assignees.Load(); v != nil {
@@ -161,60 +180,59 @@ func (e *worktreeEntry) display(opts fuzzyDisplayOptions) string {
 	b.WriteString(e.branch)
 	b.WriteString("]")
 
-	if label != "" || assignees != "" || opts.showPath {
+	padding := maxBranchLen - len(e.branch)
+	for i := 0; i < padding; i++ {
+		b.WriteByte(' ')
+	}
+
+	if status != "" || assignees != "" || opts.showPath {
 		b.WriteString("  ")
 	}
 
-	if label != "" {
-		b.WriteString(label)
+	if status != "" {
+		b.WriteString(fmt.Sprintf("%-*s", statusColumnWidth, status))
+	} else if assignees != "" || opts.showPath {
+		for i := 0; i < statusColumnWidth; i++ {
+			b.WriteByte(' ')
+		}
 	}
 
 	if assignees != "" {
-		if label != "" {
-			b.WriteByte(' ')
-		}
-		b.WriteString("@")
+		b.WriteString("  @")
 		b.WriteString(assignees)
 	}
 
 	if opts.showPath {
-		if label != "" || assignees != "" {
-			b.WriteByte(' ')
-		}
+		b.WriteString("  ")
 		b.WriteString(e.path)
 	}
 
 	return b.String()
 }
 
-func formatStatusLabel(status string) string {
-	if status == "" {
-		return ""
-	}
-	return fmt.Sprintf("%-*s", statusColumnWidth, status)
-}
-
 type worktreeCollection struct {
-	base    []*worktreeEntry
-	slice   []*worktreeEntry
-	lock    sync.Mutex
-	toggled bool
-	options fuzzyDisplayOptions
+	base         []*worktreeEntry
+	slice        []*worktreeEntry
+	lock         sync.Mutex
+	toggled      bool
+	options      fuzzyDisplayOptions
+	maxBranchLen int
 }
 
 func newWorktreeCollection(entries []*worktreeEntry, opts fuzzyDisplayOptions) *worktreeCollection {
 	base := append([]*worktreeEntry(nil), entries...)
 	slice := append([]*worktreeEntry(nil), entries...)
 	return &worktreeCollection{
-		base:    base,
-		slice:   slice,
-		options: opts,
+		base:         base,
+		slice:        slice,
+		options:      opts,
+		maxBranchLen: calcMaxBranchLen(entries),
 	}
 }
 
 func (c *worktreeCollection) itemString(i int) string {
 	if i < len(c.base) {
-		return c.base[i].display(c.options)
+		return c.base[i].display(c.options, c.maxBranchLen)
 	}
 	return ""
 }
