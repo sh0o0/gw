@@ -17,6 +17,7 @@ func SymlinkPatterns() []string {
 		"**/.vscode/*",
 		"**/.claude/*",
 		"**/.env*",
+		"**/*.env",
 		"**/.github/prompts/*.local.prompt.md",
 		"**/.ignored/**",
 		"**/.serena/**",
