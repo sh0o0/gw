@@ -94,7 +94,7 @@ func TestBranchStatusResolver_shouldReturnOpened_whenGhReportsOpenPR(t *testing.
 		t.Fatalf("mkdir bin: %v", err)
 	}
 	ghPath := filepath.Join(binDir, "gh")
-	script := "#!/bin/sh\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then\n  echo OPEN\n  exit 0\nfi\nexit 1\n"
+	script := "#!/bin/sh\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then\n  echo '{\"state\":\"OPEN\",\"assignees\":[]}'\n  exit 0\nfi\nexit 1\n"
 	if err := os.WriteFile(ghPath, []byte(script), 0o755); err != nil {
 		t.Fatalf("write gh stub: %v", err)
 	}
@@ -126,7 +126,7 @@ func TestBranchStatusResolver_shouldReturnMerged_whenGhReportsMergedPR(t *testin
 		t.Fatalf("mkdir bin: %v", err)
 	}
 	ghPath := filepath.Join(binDir, "gh")
-	script := "#!/bin/sh\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then\n  echo MERGED\n  exit 0\nfi\nexit 1\n"
+	script := "#!/bin/sh\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then\n  echo '{\"state\":\"MERGED\",\"assignees\":[]}'\n  exit 0\nfi\nexit 1\n"
 	if err := os.WriteFile(ghPath, []byte(script), 0o755); err != nil {
 		t.Fatalf("write gh stub: %v", err)
 	}
@@ -151,6 +151,40 @@ func TestBranchStatus_Display_shouldReturnUppercase(t *testing.T) {
 	}
 	if got := BranchStatus("").Display(); got != "" {
 		t.Fatalf("expected empty display, got %q", got)
+	}
+}
+
+func TestBranchStatusResolver_shouldReturnAssignees_whenGhReportsAssignees(t *testing.T) {
+	const branchName = "feature/assigned"
+	repo, branchPath := initStatusTestRepo(t, branchName)
+	path := filepath.Join(branchPath, "feature.txt")
+	if err := os.WriteFile(path, []byte("feature"), 0o644); err != nil {
+		t.Fatalf("write feature: %v", err)
+	}
+	runGitTestHelper(t, branchPath, "add", "feature.txt")
+	runGitTestHelper(t, branchPath, "commit", "-m", "feat: assigned pr")
+
+	binDir := filepath.Join(t.TempDir(), "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatalf("mkdir bin: %v", err)
+	}
+	ghPath := filepath.Join(binDir, "gh")
+	script := "#!/bin/sh\nif [ \"$1\" = \"pr\" ] && [ \"$2\" = \"view\" ]; then\n  echo '{\"state\":\"OPEN\",\"assignees\":[{\"login\":\"user1\"},{\"login\":\"user2\"}]}'\n  exit 0\nfi\nexit 1\n"
+	if err := os.WriteFile(ghPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write gh stub: %v", err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	resolver := NewBranchStatusResolver(repo)
+	info := resolver.StatusInfo(branchPath, branchName)
+	if info.Status != BranchStatusOpened {
+		t.Fatalf("unexpected status: want %q got %q", BranchStatusOpened, info.Status)
+	}
+	if len(info.Assignees) != 2 {
+		t.Fatalf("unexpected assignees count: want 2 got %d", len(info.Assignees))
+	}
+	if info.Assignees[0] != "user1" || info.Assignees[1] != "user2" {
+		t.Fatalf("unexpected assignees: %v", info.Assignees)
 	}
 }
 

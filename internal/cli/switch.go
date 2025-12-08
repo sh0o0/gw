@@ -108,6 +108,7 @@ type worktreeEntry struct {
 	path      string
 	isPrimary bool
 	status    atomic.Value
+	assignees atomic.Value
 }
 
 func buildWorktreeEntries(wts []gitx.Worktree, skip func(gitx.Worktree) bool, primaryPath string) []*worktreeEntry {
@@ -150,12 +151,17 @@ func (e *worktreeEntry) display(opts fuzzyDisplayOptions) string {
 	}
 	label := formatStatusLabel(status)
 
+	assignees := ""
+	if v := e.assignees.Load(); v != nil {
+		assignees = v.(string)
+	}
+
 	var b strings.Builder
 	b.WriteString("[")
 	b.WriteString(e.branch)
 	b.WriteString("]")
 
-	if label != "" || opts.showPath {
+	if label != "" || assignees != "" || opts.showPath {
 		b.WriteString("  ")
 	}
 
@@ -163,8 +169,16 @@ func (e *worktreeEntry) display(opts fuzzyDisplayOptions) string {
 		b.WriteString(label)
 	}
 
-	if opts.showPath {
+	if assignees != "" {
 		if label != "" {
+			b.WriteByte(' ')
+		}
+		b.WriteString("@")
+		b.WriteString(assignees)
+	}
+
+	if opts.showPath {
+		if label != "" || assignees != "" {
 			b.WriteByte(' ')
 		}
 		b.WriteString(e.path)
@@ -271,17 +285,27 @@ func startWorktreeStatusLoader(collection *worktreeCollection, resolver *gitx.Br
 					<-sem
 					wg.Done()
 				}()
-				status, err := resolver.Status(entry.path, entry.rawBranch)
-				if err != nil {
-					return
-				}
-				newStatus := status.Display()
+				info := resolver.StatusInfo(entry.path, entry.rawBranch)
+				newStatus := info.Status.Display()
 				current := ""
 				if v := entry.status.Load(); v != nil {
 					current, _ = v.(string)
 				}
+				updated := false
 				if current != newStatus {
 					entry.status.Store(newStatus)
+					updated = true
+				}
+				newAssignees := strings.Join(info.Assignees, ",")
+				currentAssignees := ""
+				if v := entry.assignees.Load(); v != nil {
+					currentAssignees, _ = v.(string)
+				}
+				if currentAssignees != newAssignees {
+					entry.assignees.Store(newAssignees)
+					updated = true
+				}
+				if updated {
 					collection.triggerReload()
 				}
 			}()

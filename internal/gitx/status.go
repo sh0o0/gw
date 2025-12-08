@@ -2,6 +2,7 @@ package gitx
 
 import (
 	"bytes"
+	"encoding/json"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -18,10 +19,15 @@ const (
 	BranchStatusNotStarted BranchStatus = "not started"
 )
 
+type PRInfo struct {
+	Status    BranchStatus
+	Assignees []string
+}
+
 type BranchStatusResolver struct {
 	baseRef string
 	ghPath  string
-	prCache map[string]BranchStatus
+	prCache map[string]PRInfo
 	mu      sync.Mutex
 }
 
@@ -31,60 +37,86 @@ func NewBranchStatusResolver(cwd string) *BranchStatusResolver {
 	return &BranchStatusResolver{
 		baseRef: base,
 		ghPath:  ghPath,
-		prCache: make(map[string]BranchStatus),
+		prCache: make(map[string]PRInfo),
 	}
 }
 
 func (r *BranchStatusResolver) Status(path, branch string) (BranchStatus, error) {
+	info := r.StatusInfo(path, branch)
+	return info.Status, nil
+}
+
+func (r *BranchStatusResolver) StatusInfo(path, branch string) PRInfo {
 	if branch == "" || branch == "HEAD" {
-		return "", nil
+		return PRInfo{}
 	}
-	if st := r.prStatus(path, branch); st != "" {
-		return st, nil
+	if info := r.prInfo(path, branch); info.Status != "" {
+		return info
 	}
 	changed, err := hasWorkingChanges(path)
 	if err != nil {
-		return "", err
+		return PRInfo{}
 	}
 	if changed {
-		return BranchStatusInProgress, nil
+		return PRInfo{Status: BranchStatusInProgress}
 	}
 	ahead, err := r.hasLocalCommits(path)
 	if err != nil {
-		return "", err
+		return PRInfo{}
 	}
 	if ahead {
-		return BranchStatusInProgress, nil
+		return PRInfo{Status: BranchStatusInProgress}
 	}
-	return BranchStatusNotStarted, nil
+	return PRInfo{Status: BranchStatusNotStarted}
 }
 
-func (r *BranchStatusResolver) prStatus(path, branch string) BranchStatus {
+type ghPRResponse struct {
+	State     string `json:"state"`
+	Assignees []struct {
+		Login string `json:"login"`
+	} `json:"assignees"`
+}
+
+func (r *BranchStatusResolver) prInfo(path, branch string) PRInfo {
 	if r.ghPath == "" {
-		return ""
+		return PRInfo{}
 	}
 	r.mu.Lock()
-	if st, ok := r.prCache[branch]; ok {
+	if info, ok := r.prCache[branch]; ok {
 		r.mu.Unlock()
-		return st
+		return info
 	}
 	r.mu.Unlock()
-	cmd := exec.Command(r.ghPath, "pr", "view", branch, "--json", "state", "--jq", ".state")
+	cmd := exec.Command(r.ghPath, "pr", "view", branch, "--json", "state,assignees")
 	cmd.Dir = path
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = new(bytes.Buffer)
 	if err := cmd.Run(); err != nil {
 		r.mu.Lock()
-		r.prCache[branch] = ""
+		r.prCache[branch] = PRInfo{}
 		r.mu.Unlock()
-		return ""
+		return PRInfo{}
 	}
-	status := branchStatusFromPRState(strings.TrimSpace(out.String()))
+	var resp ghPRResponse
+	if err := json.Unmarshal(out.Bytes(), &resp); err != nil {
+		r.mu.Lock()
+		r.prCache[branch] = PRInfo{}
+		r.mu.Unlock()
+		return PRInfo{}
+	}
+	info := PRInfo{
+		Status: branchStatusFromPRState(strings.TrimSpace(resp.State)),
+	}
+	for _, a := range resp.Assignees {
+		if a.Login != "" {
+			info.Assignees = append(info.Assignees, a.Login)
+		}
+	}
 	r.mu.Lock()
-	r.prCache[branch] = status
+	r.prCache[branch] = info
 	r.mu.Unlock()
-	return status
+	return info
 }
 
 func branchStatusFromPRState(state string) BranchStatus {
