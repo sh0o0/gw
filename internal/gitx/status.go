@@ -12,6 +12,7 @@ type BranchStatus string
 
 const (
 	BranchStatusMerged     BranchStatus = "merged"
+	BranchStatusClosed     BranchStatus = "closed"
 	BranchStatusOpened     BranchStatus = "opened"
 	BranchStatusInProgress BranchStatus = "in progress"
 	BranchStatusNotStarted BranchStatus = "not started"
@@ -90,6 +91,8 @@ func branchStatusFromPRState(state string) BranchStatus {
 	switch strings.ToUpper(state) {
 	case "MERGED":
 		return BranchStatusMerged
+	case "CLOSED":
+		return BranchStatusClosed
 	case "OPEN":
 		return BranchStatusOpened
 	default:
