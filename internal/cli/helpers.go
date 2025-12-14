@@ -70,16 +70,36 @@ func navigateToRelativePath(worktreePath, rel string) error {
 	return nil
 }
 
-func postCreateWorktree(p string) error {
+type PostCreateOptions struct {
+	Verbose bool
+}
+
+func createSymlinks(p string, opts PostCreateOptions) error {
 	root, err := gitx.Root("")
 	if err != nil {
 		return err
 	}
-	if _, err := worktree.CreateSymlinksFromGitignored(root, p); err != nil {
+	symlinkOpts := worktree.SymlinkOptions{Verbose: opts.Verbose}
+	count, err := worktree.CreateSymlinksFromGitignored(root, p, symlinkOpts)
+	if err != nil {
 		return err
 	}
+	if count > 0 {
+		fmt.Fprintf(os.Stderr, "Created %d symlink(s)\n", count)
+	}
+	return nil
+}
+
+func navigateToWorktree(p string) error {
 	rel, _ := relativePathFromGitRoot()
 	return navigateToRelativePath(p, rel)
+}
+
+func postCreateWorktree(p string, opts PostCreateOptions) error {
+	if err := createSymlinks(p, opts); err != nil {
+		return err
+	}
+	return navigateToWorktree(p)
 }
 
 func samePath(a, b string) bool {

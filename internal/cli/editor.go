@@ -78,7 +78,7 @@ func openEditorInteractive(editor string, opts fuzzyDisplayOptions) error {
 	if !ok {
 		return errors.New("selection cancelled")
 	}
-	return openEditor(editor, entry.path)
+	return openEditorCmd(editor, entry.path)
 }
 
 func openEditorForBranch(editor, branch string) error {
@@ -86,10 +86,10 @@ func openEditorForBranch(editor, branch string) error {
 	if err != nil {
 		return fmt.Errorf("no worktree found for branch: %s", branch)
 	}
-	return openEditor(editor, p)
+	return openEditorCmd(editor, p)
 }
 
-func openEditor(editor, path string) error {
+func openEditorCmd(editor, path string) error {
 	cmd := exec.Command(editor, path)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout

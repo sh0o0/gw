@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/sh0o0/gw/internal/gitx"
@@ -12,6 +13,10 @@ import (
 func newNewCmd() *cobra.Command {
 	var fromRef string
 	var fromCurrent bool
+	var openEditor bool
+	var editorCmd string
+	var hookBackground bool
+	var verbose bool
 
 	cmd := &cobra.Command{
 		Use:   "new <branch>",
@@ -40,7 +45,7 @@ func newNewCmd() *cobra.Command {
 				baseRef, _ = gitx.PrimaryBranch("")
 			}
 
-			prevRev, _ := gitx.Cmd("", "rev-parse", "--verify", "HEAD")
+			prevRev, _ := gitx.Cmd("", "rev-parse", "--verify", "HEAD")''
 			prevRev = strings.TrimSpace(prevRev)
 			prevBranch, _ := gitx.BranchAt(".")
 
@@ -51,27 +56,48 @@ func newNewCmd() *cobra.Command {
 			if _, err := gitx.Cmd("", "worktree", "add", p, "-b", branch, baseRef); err != nil {
 				return err
 			}
-			if err := postCreateWorktree(p); err != nil {
+
+			fmt.Fprintf(os.Stderr, "Created branch '%s' from '%s'\n", branch, baseRef)
+
+			if openEditor {
+				editor := resolveEditor(editorCmd)
+				if editor == "" {
+					fmt.Fprintln(cmd.ErrOrStderr(), "Warning: no editor specified, skipping editor open")
+				} else {
+					if err := openEditorCmd(editor, p); err != nil {
+						fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to open editor: %v\n", err)
+					}
+				}
+			}
+
+			if err := createSymlinks(p, PostCreateOptions{Verbose: verbose}); err != nil {
 				return err
 			}
 
 			newRev, _ := gitx.Cmd(p, "rev-parse", "--verify", "HEAD")
 			newRev = strings.TrimSpace(newRev)
 			newBranch, _ := gitx.BranchAt(p)
-			runPostCheckoutWithCWD(prevRev, newRev, prevBranch, newBranch, p)
-			return nil
+			runPostCheckoutWithCWD(prevRev, newRev, prevBranch, newBranch, p, hookBackground)
+
+			return navigateToWorktree(p)
 		},
 	}
 
 	cmd.Flags().StringVar(&fromRef, "from", "", "Create from specific ref (branch, tag, or commit)")
 	cmd.Flags().BoolVar(&fromCurrent, "from-current", false, "Create from current branch")
+	cmd.Flags().BoolVarP(&openEditor, "editor", "e", false, "Open editor after creating worktree")
+	cmd.Flags().StringVar(&editorCmd, "editor-cmd", "", "Editor command to use (default: $EDITOR)")
+	cmd.Flags().BoolVar(&hookBackground, "hook-bg", false, "Run post-checkout hook in background")
+	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show each symlink created")
 	cmd.MarkFlagsMutuallyExclusive("from", "from-current")
 
 	return cmd
 }
 
 func newAddCmd() *cobra.Command {
-	return &cobra.Command{
+	var verbose bool
+
+	cmd := &cobra.Command{
 		Use:   "add <branch>",
 		Short: "Create new worktree for an existing branch",
 		Args:  cobra.ExactArgs(1),
@@ -87,7 +113,10 @@ func newAddCmd() *cobra.Command {
 			if _, err := gitx.Cmd("", "worktree", "add", p, branch); err != nil {
 				return err
 			}
-			return postCreateWorktree(p)
+			return postCreateWorktree(p, PostCreateOptions{Verbose: verbose})
 		},
 	}
+
+	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show each symlink created")
+	return cmd
 }

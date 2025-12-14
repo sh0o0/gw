@@ -11,7 +11,9 @@ import (
 )
 
 func newSyncCmd() *cobra.Command {
-	return &cobra.Command{
+	var verbose bool
+
+	cmd := &cobra.Command{
 		Use:   "sync",
 		Short: "Sync symlinks from primary worktree to current worktree",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -26,7 +28,8 @@ func newSyncCmd() *cobra.Command {
 			if current == primary {
 				return errors.New("you are in the primary worktree; nothing to sync")
 			}
-			count, err := worktree.CreateSymlinksFromGitignored(primary, current)
+			opts := worktree.SymlinkOptions{Verbose: verbose}
+			count, err := worktree.CreateSymlinksFromGitignored(primary, current, opts)
 			if err != nil {
 				return err
 			}
@@ -34,4 +37,7 @@ func newSyncCmd() *cobra.Command {
 			return nil
 		},
 	}
+
+	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show each symlink created")
+	return cmd
 }

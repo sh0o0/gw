@@ -124,7 +124,11 @@ func GitIgnoredFiles(root string) ([]string, error) {
 	return res, nil
 }
 
-func CreateSymlinksFromGitignored(root, target string) (int, error) {
+type SymlinkOptions struct {
+	Verbose bool
+}
+
+func CreateSymlinksFromGitignored(root, target string, opts SymlinkOptions) (int, error) {
 	files, err := GitIgnoredFiles(root)
 	if err != nil {
 		return 0, err
@@ -155,7 +159,9 @@ func CreateSymlinksFromGitignored(root, target string) (int, error) {
 		if err := fsutil.CreateSymlink(actualSrc, dst); err != nil {
 			return count, err
 		}
-		fmt.Fprintf(os.Stderr, "Created symlink: %s -> %s\n", dst, actualSrc)
+		if opts.Verbose {
+			fmt.Fprintf(os.Stderr, "Created symlink: %s -> %s\n", dst, actualSrc)
+		}
 		count++
 	}
 	return count, nil
