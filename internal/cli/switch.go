@@ -16,13 +16,12 @@ import (
 	fuzzyfinder "github.com/ktr0731/go-fuzzyfinder"
 )
 
-func newSwitchCmd() *cobra.Command {
+func newGoCmd() *cobra.Command {
 	var opts fuzzyDisplayOptions
 	cmd := &cobra.Command{
-		Use:     "switch [branch]",
-		Short:   "Fuzzy search and cd to worktree or switch directly by branch",
-		Aliases: []string{"sw"},
-		Args:    cobra.MaximumNArgs(1),
+		Use:   "go [branch]",
+		Short: "Fuzzy search and cd to worktree or switch directly by branch",
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 1 {
 				return switchToBranch(args[0])

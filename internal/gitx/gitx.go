@@ -178,6 +178,14 @@ func FindWorktreeByBranch(cwd, branch string) (string, error) {
 	return "", fmt.Errorf("no worktree for branch %s", branch)
 }
 
+func BranchExists(cwd, branch string) (bool, error) {
+	_, err := Cmd(cwd, "rev-parse", "--verify", "refs/heads/"+branch)
+	if err != nil {
+		return false, nil
+	}
+	return true, nil
+}
+
 func MergedBranches(cwd string) ([]string, error) {
 	out, err := Cmd(cwd, "branch", "--merged")
 	if err != nil {

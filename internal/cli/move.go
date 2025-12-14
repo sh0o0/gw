@@ -14,9 +14,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newMoveCmd() *cobra.Command {
+func newMvCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "move <old-branch> <new-branch>",
+		Use:   "mv <old-branch> <new-branch>",
 		Short: "Rename a branch and relocate its worktree directory",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {

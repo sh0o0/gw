@@ -31,13 +31,13 @@ gw --help
 
 - `gw link <path>`: Move file to primary worktree and symlink back
 - `gw unlink <path>`: Replace symlink with real file/dir
-- `gw switch` or `gw switch <branch>`
-- `gw checkout <branch>`
-- `gw restore <branch>`
-- `gw list`
-- `gw prune`
-- `gw move <old-branch> <new-branch>`
-- `gw remove [--force] [branch ...]`
+- `gw go` or `gw go <branch>`: Fuzzy search and cd to worktree
+- `gw new <branch>`: Create new worktree with a new branch
+- `gw add <branch>`: Create new worktree for an existing branch (fetches from origin first)
+- `gw list`: List all worktrees
+- `gw clean`: Clean up stale worktree references
+- `gw mv <old-branch> <new-branch>`: Rename branch and relocate worktree
+- `gw rm [--force] [branch ...]`: Remove worktree(s)
 
 Note: Changing directories from a child process cannot affect your shell session. Use `gw shell-init` to install a wrapper that updates your shell automatically, or combine with `cd $(gw switch ...)` if you prefer manual control.
 

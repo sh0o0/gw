@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/sh0o0/gw/internal/gitx"
@@ -8,29 +9,25 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newCheckoutCmd() *cobra.Command {
+func newNewCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:     "checkout <branch>",
-		Short:   "Switch to existing worktree or create new one for branch",
-		Aliases: []string{"co"},
-		Args:    cobra.ExactArgs(1),
+		Use:   "new <branch>",
+		Short: "Create new worktree with a new branch",
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			branch := args[0]
+
+			if path, err := gitx.FindWorktreeByBranch("", branch); err == nil && path != "" {
+				return fmt.Errorf("worktree already exists for branch: %s", branch)
+			}
+
+			if exists, _ := gitx.BranchExists("", branch); exists {
+				return fmt.Errorf("branch already exists: %s", branch)
+			}
+
 			prevRev, _ := gitx.Cmd("", "rev-parse", "--verify", "HEAD")
 			prevRev = strings.TrimSpace(prevRev)
 			prevBranch, _ := gitx.BranchAt(".")
-
-			branch := args[0]
-			path, err := gitx.FindWorktreeByBranch("", branch)
-			if err == nil && path != "" {
-				if err := switchToPath(path); err != nil {
-					return err
-				}
-				newRev, _ := gitx.Cmd(path, "rev-parse", "--verify", "HEAD")
-				newRev = strings.TrimSpace(newRev)
-				newBranch, _ := gitx.BranchAt(path)
-				runPostCheckoutWithCWD(prevRev, newRev, prevBranch, newBranch, path)
-				return nil
-			}
 
 			p, err := worktree.ComputeWorktreePath("", branch)
 			if err != nil {
@@ -52,13 +49,16 @@ func newCheckoutCmd() *cobra.Command {
 	}
 }
 
-func newRestoreCmd() *cobra.Command {
+func newAddCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "restore <branch>",
-		Short: "Create new worktree for specified branch",
+		Use:   "add <branch>",
+		Short: "Create new worktree for an existing branch",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			branch := args[0]
+
+			gitx.Cmd("", "fetch", "origin", branch)
+
 			p, err := worktree.ComputeWorktreePath("", branch)
 			if err != nil {
 				return err

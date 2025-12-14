@@ -22,10 +22,10 @@ func newListCmd() *cobra.Command {
 	}
 }
 
-func newPruneCmd() *cobra.Command {
+func newCleanCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "prune",
-		Short: "Prune worktrees",
+		Use:   "clean",
+		Short: "Clean up stale worktree references",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out, err := gitx.Cmd("", "worktree", "prune")
 			if err != nil {

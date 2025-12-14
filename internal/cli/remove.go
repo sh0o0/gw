@@ -13,14 +13,13 @@ import (
 	fuzzyfinder "github.com/ktr0731/go-fuzzyfinder"
 )
 
-func newRemoveCmd() *cobra.Command {
+func newRmCmd() *cobra.Command {
 	var force bool
 	var opts fuzzyDisplayOptions
 	var merged bool
 	cmd := &cobra.Command{
-		Use:     "remove [--force] [branch ...]",
-		Short:   "Remove worktree(s) by fuzzy select or by branch names",
-		Aliases: []string{"rm"},
+		Use:   "rm [--force] [branch ...]",
+		Short: "Remove worktree(s) by fuzzy select or by branch names",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if merged {
 				if len(args) > 0 {
