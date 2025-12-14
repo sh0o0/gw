@@ -86,7 +86,7 @@ func removeInteractive(force bool, opts fuzzyDisplayOptions) error {
 	current, _ := gitx.CurrentWorktreePath("")
 	primaryPath, _ := primaryWorktreePath()
 	entries := buildWorktreeEntries(wts, func(wt gitx.Worktree) bool {
-		return wt.Path == current
+		return wt.Path == current || samePath(wt.Path, primaryPath)
 	}, primaryPath)
 	if len(entries) == 0 {
 		return errors.New("no worktrees available for selection")
