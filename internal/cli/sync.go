@@ -2,8 +2,6 @@ package cli
 
 import (
 	"errors"
-	"fmt"
-	"os"
 
 	"github.com/sh0o0/gw/internal/gitx"
 	"github.com/sh0o0/gw/internal/worktree"
@@ -33,7 +31,7 @@ func newSyncCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(os.Stderr, "Synced %d symlink(s)\n", count)
+			out.Link("Synced %d symlink(s)", count)
 			return nil
 		},
 	}

@@ -103,16 +103,16 @@ func moveWorktree(oldBranch, newBranch string) error {
 	if _, err := gitx.Cmd(oldPath, "branch", "-m", newBranch); err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "Renamed branch: %s -> %s\n", oldBranch, newBranch)
+	out.Branch("Renamed branch: %s → %s", out.Highlight(oldBranch), out.Highlight(newBranch))
 
 	if !samePath {
 		if _, err := gitx.Cmd("", "worktree", "move", oldPath, destPath); err != nil {
 			if _, revertErr := gitx.Cmd(oldPath, "branch", "-m", oldBranch); revertErr == nil {
-				fmt.Fprintln(os.Stderr, "Reverted branch rename because worktree move failed")
+				out.Warn("Reverted branch rename because worktree move failed")
 			}
 			return err
 		}
-		fmt.Fprintf(os.Stderr, "Moved worktree: %s -> %s\n", oldPath, destPath)
+		out.Folder("Moved worktree: %s → %s", out.Highlight(oldPath), out.Highlight(destPath))
 	} else {
 		destPath = oldPath
 	}

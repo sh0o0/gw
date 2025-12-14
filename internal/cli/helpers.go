@@ -85,7 +85,7 @@ func createSymlinks(p string, opts PostCreateOptions) error {
 		return err
 	}
 	if count > 0 {
-		fmt.Fprintf(os.Stderr, "Created %d symlink(s)\n", count)
+		out.Link("Created %d symlink(s)", count)
 	}
 	return nil
 }

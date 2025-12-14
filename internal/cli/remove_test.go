@@ -45,7 +45,7 @@ func TestRemoveMergedBranches_shouldRemoveBranches_whenMergedBranchesExist(t *te
 	runGit(t, repo, "switch", "main")
 	runGit(t, repo, "merge", "--no-ff", withoutWorktree)
 
-	if err := removeMergedBranches(false); err != nil {
+	if err := removeMergedBranches(removeOptions{force: false}); err != nil {
 		t.Fatalf("removeMergedBranches: %v", err)
 	}
 

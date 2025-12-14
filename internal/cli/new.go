@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/sh0o0/gw/internal/gitx"
@@ -57,7 +56,7 @@ func newNewCmd() *cobra.Command {
 				return err
 			}
 
-			fmt.Fprintf(os.Stderr, "Created branch '%s' from '%s'\n", branch, baseRef)
+			out.Branch("Created branch %s from %s", out.Highlight(branch), out.Highlight(baseRef))
 
 			if openEditor {
 				editor := resolveEditor(editorCmd)

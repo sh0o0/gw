@@ -42,13 +42,13 @@ func newRmCmd() *cobra.Command {
 				for _, b := range args {
 					if err := removeWorktreeByBranch(b, removeOpts); err != nil {
 						failed = append(failed, b)
-						fmt.Fprintf(os.Stderr, "✗ Failed to remove worktree for branch: %s\n\n", b)
+						out.Error("Failed to remove worktree for branch: %s", b)
 					} else {
 						success++
-						fmt.Fprintf(os.Stderr, "✓ Successfully removed worktree for branch: %s\n\n", b)
+						out.Success("Removed worktree for branch: %s", b)
 					}
 				}
-				fmt.Fprintf(os.Stderr, "Summary:\n  Successfully removed: %d worktree(s)\n", success)
+				out.Summary(success, len(failed), "worktree")
 				if len(failed) > 0 {
 					return fmt.Errorf("failed branches: %s", strings.Join(failed, ", "))
 				}
@@ -109,13 +109,13 @@ func removeWorktreeInBackground(path string, opts removeOptions) error {
 		logFile.Close()
 		return fmt.Errorf("failed to start background removal: %w", err)
 	}
-	fmt.Fprintf(os.Stderr, "Started background removal for: %s (PID: %d, log: %s)\n", path, cmd.Process.Pid, logPath)
+	out.Working("Started background removal for: %s %s", out.Highlight(path), out.Dim(fmt.Sprintf("(PID: %d, log: %s)", cmd.Process.Pid, logPath)))
 	return nil
 }
 
 func removeWorktreeForeground(path string, opts removeOptions) error {
 	br, _ := gitx.BranchAt(path)
-	fmt.Fprintf(os.Stderr, "Removing worktree: %s\n", path)
+	out.Trash("Removing worktree: %s", out.Highlight(path))
 	if opts.force {
 		if _, err := gitx.Cmd("", "worktree", "remove", "--force", path); err != nil {
 			return err
@@ -126,11 +126,11 @@ func removeWorktreeForeground(path string, opts removeOptions) error {
 		}
 	}
 	if br != "" && br != "HEAD" {
-		fmt.Fprintf(os.Stderr, "Deleting branch: %s\n", br)
+		out.Branch("Deleting branch: %s", out.Highlight(br))
 		if _, err := gitx.Cmd("", "branch", "-D", br); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: Failed to delete branch: %s\n", br)
+			out.Warn("Failed to delete branch: %s", br)
 		} else {
-			fmt.Fprintf(os.Stderr, "Successfully deleted branch: %s\n", br)
+			out.Success("Deleted branch: %s", br)
 		}
 	}
 	runPostRemove(br, path, opts.hookBackground)
@@ -194,13 +194,13 @@ func removeInteractive(rmOpts removeOptions, opts fuzzyDisplayOptions) error {
 		path := e.path
 		if err := removeWorktreeAtPath(path, rmOpts); err != nil {
 			failed = append(failed, path)
-			fmt.Fprintf(os.Stderr, "✗ Failed to remove worktree: %s\n  %v\n\n", path, err)
+			out.Error("Failed to remove worktree: %s\n  %v", path, err)
 			continue
 		}
 		success++
-		fmt.Fprintf(os.Stderr, "✓ Successfully removed worktree: %s\n\n", path)
+		out.Success("Removed worktree: %s", path)
 	}
-	fmt.Fprintf(os.Stderr, "Summary:\n  Successfully removed: %d worktree(s)\n", success)
+	out.Summary(success, len(failed), "worktree")
 	if len(failed) > 0 {
 		return fmt.Errorf("failed worktrees: %s", strings.Join(failed, ", "))
 	}
@@ -262,13 +262,13 @@ func removeMergedBranches(opts removeOptions) error {
 				continue
 			}
 			failed = append(failed, branch)
-			fmt.Fprintf(os.Stderr, "✗ Failed to remove branch: %s\n  %v\n\n", branch, err)
+			out.Error("Failed to remove branch: %s\n  %v", branch, err)
 			continue
 		}
 		success++
-		fmt.Fprintf(os.Stderr, "✓ Successfully removed branch: %s\n\n", branch)
+		out.Success("Removed branch: %s", branch)
 	}
-	fmt.Fprintf(os.Stderr, "Summary:\n  Successfully removed: %d branch(es)\n", success)
+	out.Summary(success, len(failed), "branch")
 	if len(failed) > 0 {
 		return fmt.Errorf("failed branches: %s", strings.Join(failed, ", "))
 	}
@@ -383,13 +383,13 @@ func removeMergedInteractive(rmOpts removeOptions, opts fuzzyDisplayOptions) err
 		path := e.path
 		if err := removeWorktreeAtPath(path, rmOpts); err != nil {
 			failed = append(failed, path)
-			fmt.Fprintf(os.Stderr, "✗ Failed to remove worktree: %s\n  %v\n\n", path, err)
+			out.Error("Failed to remove worktree: %s\n  %v", path, err)
 			continue
 		}
 		success++
-		fmt.Fprintf(os.Stderr, "✓ Successfully removed worktree: %s\n\n", path)
+		out.Success("Removed worktree: %s", path)
 	}
-	fmt.Fprintf(os.Stderr, "Summary:\n  Successfully removed: %d worktree(s)\n", success)
+	out.Summary(success, len(failed), "worktree")
 	if len(failed) > 0 {
 		return fmt.Errorf("failed worktrees: %s", strings.Join(failed, ", "))
 	}
