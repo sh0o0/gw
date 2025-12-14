@@ -34,6 +34,7 @@ func newRootCmd() *cobra.Command {
 		newRemoveCmd(),
 		newSyncCmd(),
 		newShellInitCmd(),
+		newEditorCmd(),
 	)
 
 	return cmd

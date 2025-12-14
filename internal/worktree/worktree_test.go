@@ -36,10 +36,12 @@ func TestParseRemoteURL_should_handle_formats(t *testing.T) {
 
 // local helper to validate patterns
 func TestMatchPatterns_when_expected(t *testing.T) {
-	if !matchAnyPattern("/.vscode/settings.json", SymlinkPatterns()) {
+	pats := []string{"**/.vscode/*"}
+	if !matchAnyPattern("/.vscode/settings.json", pats) {
 		t.Fatalf("expected vscode pattern to match")
 	}
-	if shouldExclude("node_modules/foo") == false {
+	excludes := []string{"**/node_modules/**"}
+	if shouldExclude("node_modules/foo", excludes) == false {
 		t.Fatalf("expected node_modules to be excluded")
 	}
 }

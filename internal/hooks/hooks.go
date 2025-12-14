@@ -3,64 +3,45 @@ package hooks
 import (
 	"os"
 	"os/exec"
-	"path/filepath"
+
+	"github.com/sh0o0/gw/internal/gitx"
 )
 
-func HooksDir(primaryRoot, gitRoot string) string {
-	if primaryRoot != "" {
-		return filepath.Join(primaryRoot, ".gw", "hooks")
+func configKeyForHook(name string) string {
+	switch name {
+	case "post-checkout":
+		return "gw.hook.postCheckout"
+	default:
+		return "gw.hook." + name
 	}
-	return filepath.Join(gitRoot, ".gw", "hooks")
 }
 
-// RunHook executes a hook file and all executables in hook.d directory.
+// RunHook executes hook commands from git config.
+// Commands are read from gw.hook.<name> (multi-value) and executed via sh -c.
 // Returns true if any hook ran and nil error if all successful.
-func RunHook(dir, name string, env map[string]string, args ...string) (ran bool, err error) {
-	if dir == "" {
+func RunHook(cwd, name string, env map[string]string) (ran bool, err error) {
+	key := configKeyForHook(name)
+	cmds, _ := gitx.ConfigGetAll(cwd, key)
+	if len(cmds) == 0 {
 		return false, nil
 	}
-	if fi, err2 := os.Stat(dir); err2 != nil || !fi.IsDir() {
-		return false, nil
-	}
-	run := func(path string) error {
-		cmd := exec.Command(path, args...)
-		// Prefer explicit hook working directory if provided; fallback to hooks dir
-		if wd := env["GW_HOOK_CWD"]; wd != "" {
-			cmd.Dir = wd
-		} else {
-			cmd.Dir = dir
+	for _, cmdStr := range cmds {
+		if cmdStr == "" {
+			continue
 		}
+		cmd := exec.Command("sh", "-c", cmdStr)
+		cmd.Dir = cwd
 		cmd.Env = os.Environ()
 		for k, v := range env {
 			cmd.Env = append(cmd.Env, k+"="+v)
 		}
-		// Send hook outputs to stderr so gw stdout remains reserved for machine-readable values (e.g., cd target path).
 		cmd.Stdout = os.Stderr
 		cmd.Stderr = os.Stderr
 		cmd.Stdin = os.Stdin
-		return cmd.Run()
-	}
-	hook := filepath.Join(dir, name)
-	if fi, err2 := os.Stat(hook); err2 == nil && fi.Mode().Perm()&0o111 != 0 && !fi.IsDir() {
-		if err := run(hook); err != nil {
+		if err := cmd.Run(); err != nil {
 			return true, err
 		}
 		ran = true
-	}
-	d := filepath.Join(dir, name+".d")
-	if entries, err2 := os.ReadDir(d); err2 == nil {
-		for _, e := range entries {
-			if e.IsDir() {
-				continue
-			}
-			p := filepath.Join(d, e.Name())
-			if fi, err3 := os.Stat(p); err3 == nil && fi.Mode().Perm()&0o111 != 0 {
-				if err := run(p); err != nil {
-					return true, err
-				}
-				ran = true
-			}
-		}
 	}
 	return ran, nil
 }

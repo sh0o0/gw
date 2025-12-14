@@ -54,3 +54,65 @@ Bash / Zsh:
 ```bash
 eval "$(gw shell-init bash)"
 ```
+
+## Configuration
+
+All configuration is stored via `git config --local`, making it repo-scoped and not committed by default.
+
+### Hooks
+
+Hook commands are stored in git config and executed via `sh -c`. Multiple commands run in order.
+
+```bash
+# Add a post-checkout hook
+git config --local --add gw.hook.postCheckout 'echo "switched to $GW_NEW_BRANCH"'
+
+# Add multiple hooks (executed in order)
+git config --local --add gw.hook.postCheckout 'npm install'
+
+# View configured hooks
+git config --local --get-all gw.hook.postCheckout
+
+# Remove all hooks
+git config --local --unset-all gw.hook.postCheckout
+```
+
+Environment variables available in hooks:
+
+- `GW_HOOK_NAME` - Hook name (e.g., `post-checkout`)
+- `GW_PREV_BRANCH` - Previous branch name
+- `GW_NEW_BRANCH` - New branch name
+
+### Symlink Patterns
+
+Control which gitignored files are symlinked to new worktrees.
+
+```bash
+# Add include patterns
+git config --global --add gw.symlink.include '**/.env*'
+git config --global --add gw.symlink.include '**/.vscode/*'
+git config --global --add gw.symlink.include '**/CLAUDE.local.md'
+
+# Add exclude patterns
+git config --global --add gw.symlink.exclude '**/node_modules/**'
+
+# Or use local (repo-scoped) config
+git config --local --add gw.symlink.include '**/.env*'
+
+# View current patterns
+git config --get-all gw.symlink.include
+git config --get-all gw.symlink.exclude
+```
+
+You can use the provided default config file:
+
+```bash
+# Option 1: Include in your ~/.gitconfig
+cat >> ~/.gitconfig <<'EOF'
+[include]
+    path = /path/to/gw/docs/default.gitconfig
+EOF
+
+# Option 2: Copy contents directly
+cat docs/default.gitconfig >> ~/.gitconfig
+```

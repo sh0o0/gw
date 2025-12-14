@@ -2,36 +2,37 @@ package hooks
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
-// Test that RunHook runs with GW_HOOK_CWD as working directory when provided.
-func TestRunHook_shouldUseProvidedCWD_whenGW_HOOK_CWDIsSet(t *testing.T) {
+func TestRunHook_shouldExecuteCommands_whenConfigSet(t *testing.T) {
 	tDir := t.TempDir()
-	hooksDir := filepath.Join(tDir, ".gw", "hooks")
-	if err := os.MkdirAll(hooksDir, 0o755); err != nil {
-		t.Fatalf("mkdir hooks: %v", err)
-	}
-	targetDir := filepath.Join(tDir, "target")
-	if err := os.MkdirAll(targetDir, 0o755); err != nil {
-		t.Fatalf("mkdir target: %v", err)
+
+	cmd := exec.Command("git", "init")
+	cmd.Dir = tDir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("git init: %v", err)
 	}
 
-	// Create a simple shell hook that writes PWD to a file specified by OUTFILE
-	hookPath := filepath.Join(hooksDir, "post-checkout")
-	script := "#!/bin/sh\n: > \"$OUTFILE\"\npwd > \"$OUTFILE\"\n"
-	if err := os.WriteFile(hookPath, []byte(script), 0o755); err != nil {
-		t.Fatalf("write hook: %v", err)
+	outFile := filepath.Join(tDir, "out.txt")
+	hookCmd := "echo hello > " + outFile
+
+	cmd = exec.Command("git", "config", "--local", "gw.hook.postCheckout", hookCmd)
+	cmd.Dir = tDir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("git config: %v", err)
 	}
 
-	outFile := filepath.Join(targetDir, "pwd.txt")
 	env := map[string]string{
-		"GW_HOOK_CWD": targetDir,
-		"OUTFILE":     outFile,
+		"GW_HOOK_NAME":   "post-checkout",
+		"GW_PREV_BRANCH": "main",
+		"GW_NEW_BRANCH":  "feature",
 	}
 
-	ran, err := RunHook(hooksDir, "post-checkout", env, "prev", "new", "1")
+	ran, err := RunHook(tDir, "post-checkout", env)
 	if !ran || err != nil {
 		t.Fatalf("hook did not run successfully: ran=%v err=%v", ran, err)
 	}
@@ -40,24 +41,101 @@ func TestRunHook_shouldUseProvidedCWD_whenGW_HOOK_CWDIsSet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to read outfile: %v", err)
 	}
-	got := string(bytesTrimSpace(data))
-	// Normalize for macOS where /var may resolve to /private/var
-	gotReal, _ := filepath.EvalSymlinks(got)
-	targetReal, _ := filepath.EvalSymlinks(targetDir)
-	if gotReal != targetReal {
-		t.Fatalf("expected hook PWD=%s, got %s", targetReal, gotReal)
+	got := strings.TrimSpace(string(data))
+	if got != "hello" {
+		t.Fatalf("expected 'hello', got '%s'", got)
 	}
 }
 
-// bytesTrimSpace is a tiny helper to avoid importing strings package for a single call
-func bytesTrimSpace(b []byte) string {
-	i := 0
-	j := len(b)
-	for i < j && (b[i] == ' ' || b[i] == '\n' || b[i] == '\r' || b[i] == '\t') {
-		i++
+func TestRunHook_shouldReturnFalse_whenNoConfig(t *testing.T) {
+	tDir := t.TempDir()
+
+	cmd := exec.Command("git", "init")
+	cmd.Dir = tDir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("git init: %v", err)
 	}
-	for j > i && (b[j-1] == ' ' || b[j-1] == '\n' || b[j-1] == '\r' || b[j-1] == '\t') {
-		j--
+
+	ran, err := RunHook(tDir, "post-checkout", nil)
+	if ran {
+		t.Fatalf("expected hook not to run when no config set")
 	}
-	return string(b[i:j])
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunHook_shouldExecuteMultipleCommands_whenMultipleConfigValues(t *testing.T) {
+	tDir := t.TempDir()
+
+	cmd := exec.Command("git", "init")
+	cmd.Dir = tDir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("git init: %v", err)
+	}
+
+	outFile := filepath.Join(tDir, "out.txt")
+
+	cmd = exec.Command("git", "config", "--local", "--add", "gw.hook.postCheckout", "echo first >> "+outFile)
+	cmd.Dir = tDir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("git config add 1: %v", err)
+	}
+
+	cmd = exec.Command("git", "config", "--local", "--add", "gw.hook.postCheckout", "echo second >> "+outFile)
+	cmd.Dir = tDir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("git config add 2: %v", err)
+	}
+
+	ran, err := RunHook(tDir, "post-checkout", nil)
+	if !ran || err != nil {
+		t.Fatalf("hook did not run successfully: ran=%v err=%v", ran, err)
+	}
+
+	data, err := os.ReadFile(outFile)
+	if err != nil {
+		t.Fatalf("failed to read outfile: %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) != 2 || lines[0] != "first" || lines[1] != "second" {
+		t.Fatalf("expected 'first\\nsecond', got '%s'", string(data))
+	}
+}
+
+func TestRunHook_shouldPassEnvVariables(t *testing.T) {
+	tDir := t.TempDir()
+
+	cmd := exec.Command("git", "init")
+	cmd.Dir = tDir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("git init: %v", err)
+	}
+
+	outFile := filepath.Join(tDir, "out.txt")
+	hookCmd := "echo $GW_NEW_BRANCH > " + outFile
+
+	cmd = exec.Command("git", "config", "--local", "gw.hook.postCheckout", hookCmd)
+	cmd.Dir = tDir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("git config: %v", err)
+	}
+
+	env := map[string]string{
+		"GW_NEW_BRANCH": "my-feature",
+	}
+
+	ran, err := RunHook(tDir, "post-checkout", env)
+	if !ran || err != nil {
+		t.Fatalf("hook did not run successfully: ran=%v err=%v", ran, err)
+	}
+
+	data, err := os.ReadFile(outFile)
+	if err != nil {
+		t.Fatalf("failed to read outfile: %v", err)
+	}
+	got := strings.TrimSpace(string(data))
+	if got != "my-feature" {
+		t.Fatalf("expected 'my-feature', got '%s'", got)
+	}
 }

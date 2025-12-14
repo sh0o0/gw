@@ -12,24 +12,18 @@ import (
 	"github.com/sh0o0/gw/internal/gitx"
 )
 
-func SymlinkPatterns() []string {
-	return []string{
-		"**/.vscode/*",
-		"**/.claude/*",
-		"**/.env*",
-		"**/*.env",
-		"**/.github/prompts/*.local.prompt.md",
-		"**/.ignored/**",
-		"**/.serena/**",
-		"**/CLAUDE.local.md",
-		"**/AGENTS.local.md",
-	}
+func SymlinkPatterns(cwd string) []string {
+	patterns, _ := gitx.ConfigGetAll(cwd, "gw.symlink.include")
+	return patterns
 }
 
-func ExcludePatterns() []string { return []string{"**/node_modules/**"} }
+func ExcludePatterns(cwd string) []string {
+	patterns, _ := gitx.ConfigGetAll(cwd, "gw.symlink.exclude")
+	return patterns
+}
 
-func shouldExclude(path string) bool {
-	for _, p := range ExcludePatterns() {
+func shouldExclude(path string, excludes []string) bool {
+	for _, p := range excludes {
 		if ok, _ := doublestar.PathMatch(p, path); ok {
 			return true
 		}
@@ -135,10 +129,11 @@ func CreateSymlinksFromGitignored(root, target string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	pats := SymlinkPatterns()
+	pats := SymlinkPatterns(root)
+	excludes := ExcludePatterns(root)
 	count := 0
 	for _, f := range files {
-		if shouldExclude(f) {
+		if shouldExclude(f, excludes) {
 			continue
 		}
 		if !matchAnyPattern("/"+f, pats) { // fish version matches against leading slash

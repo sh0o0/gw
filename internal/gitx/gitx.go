@@ -199,3 +199,41 @@ func MergedBranches(cwd string) ([]string, error) {
 	}
 	return branches, nil
 }
+
+func ConfigGet(cwd, key string) (string, error) {
+	out, err := Cmd(cwd, "config", "--get", key)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out), nil
+}
+
+func ConfigGetAll(cwd, key string) ([]string, error) {
+	out, err := Cmd(cwd, "config", "--get-all", key)
+	if err != nil {
+		return nil, nil
+	}
+	var res []string
+	for _, ln := range strings.Split(out, "\n") {
+		ln = strings.TrimSpace(ln)
+		if ln != "" {
+			res = append(res, ln)
+		}
+	}
+	return res, nil
+}
+
+func ConfigSet(cwd, key, value string) error {
+	_, err := Cmd(cwd, "config", "--local", key, value)
+	return err
+}
+
+func ConfigAdd(cwd, key, value string) error {
+	_, err := Cmd(cwd, "config", "--local", "--add", key, value)
+	return err
+}
+
+func ConfigUnset(cwd, key string) error {
+	_, err := Cmd(cwd, "config", "--local", "--unset-all", key)
+	return err
+}
