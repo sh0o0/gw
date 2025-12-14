@@ -10,7 +10,10 @@ import (
 )
 
 func newNewCmd() *cobra.Command {
-	return &cobra.Command{
+	var fromRef string
+	var fromCurrent bool
+
+	cmd := &cobra.Command{
 		Use:   "new <branch>",
 		Short: "Create new worktree with a new branch",
 		Args:  cobra.ExactArgs(1),
@@ -25,6 +28,18 @@ func newNewCmd() *cobra.Command {
 				return fmt.Errorf("branch already exists: %s", branch)
 			}
 
+			baseRef := fromRef
+			if fromCurrent {
+				currentBranch, err := gitx.BranchAt(".")
+				if err != nil {
+					return fmt.Errorf("failed to get current branch: %w", err)
+				}
+				baseRef = currentBranch
+			}
+			if baseRef == "" {
+				baseRef, _ = gitx.PrimaryBranch("")
+			}
+
 			prevRev, _ := gitx.Cmd("", "rev-parse", "--verify", "HEAD")
 			prevRev = strings.TrimSpace(prevRev)
 			prevBranch, _ := gitx.BranchAt(".")
@@ -33,7 +48,7 @@ func newNewCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if _, err := gitx.Cmd("", "worktree", "add", p, "-b", branch); err != nil {
+			if _, err := gitx.Cmd("", "worktree", "add", p, "-b", branch, baseRef); err != nil {
 				return err
 			}
 			if err := postCreateWorktree(p); err != nil {
@@ -47,6 +62,12 @@ func newNewCmd() *cobra.Command {
 			return nil
 		},
 	}
+
+	cmd.Flags().StringVar(&fromRef, "from", "", "Create from specific ref (branch, tag, or commit)")
+	cmd.Flags().BoolVar(&fromCurrent, "from-current", false, "Create from current branch")
+	cmd.MarkFlagsMutuallyExclusive("from", "from-current")
+
+	return cmd
 }
 
 func newAddCmd() *cobra.Command {

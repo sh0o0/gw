@@ -245,3 +245,23 @@ func ConfigUnset(cwd, key string) error {
 	_, err := Cmd(cwd, "config", "--local", "--unset-all", key)
 	return err
 }
+
+func PrimaryBranch(cwd string) (string, error) {
+	out, err := Cmd(cwd, "symbolic-ref", "refs/remotes/origin/HEAD")
+	if err == nil {
+		branch := strings.TrimSpace(out)
+		branch = strings.TrimPrefix(branch, "refs/remotes/origin/")
+		if branch != "" {
+			return branch, nil
+		}
+	}
+	for _, candidate := range []string{"main", "master"} {
+		if exists, _ := BranchExists(cwd, candidate); exists {
+			return candidate, nil
+		}
+		if _, err := Cmd(cwd, "rev-parse", "--verify", "refs/remotes/origin/"+candidate); err == nil {
+			return candidate, nil
+		}
+	}
+	return "main", nil
+}

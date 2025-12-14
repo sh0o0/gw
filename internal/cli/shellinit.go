@@ -61,7 +61,7 @@ const fishShellInitScript = `function gw --description 'Git worktree power tool'
     if test $exit_status -eq 0
         if test (count $argv) -gt 0
             switch $argv[1]
-				case switch sw checkout co restore
+				case go new add mv
                     set -l target (string replace -r '\n*$' '' -- $raw)
                     if string match -rq '^/' -- $target
                         if test -d "$target"
@@ -84,7 +84,7 @@ const bashShellInitScript = `gw() {
   local _gw_status=$?
   if [ "$_gw_status" -eq 0 ] && [ $# -gt 0 ]; then
 		case "$1" in
-			switch|sw|checkout|co|restore)
+			go|new|add|mv)
         local _gw_target
         _gw_target="$(printf '%s\n' "$_gw_out" | tail -n 1)"
         if [ -n "$_gw_target" ] && [ "${_gw_target#/}" != "$_gw_target" ] && [ -d "$_gw_target" ]; then
