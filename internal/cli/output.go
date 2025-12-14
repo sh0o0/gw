@@ -6,7 +6,12 @@ import (
 	"os"
 
 	"github.com/fatih/color"
+	"github.com/mattn/go-isatty"
 )
+
+func init() {
+	color.NoColor = !isatty.IsTerminal(os.Stderr.Fd()) && !isatty.IsCygwinTerminal(os.Stderr.Fd())
+}
 
 var (
 	successColor = color.New(color.FgGreen, color.Bold)
