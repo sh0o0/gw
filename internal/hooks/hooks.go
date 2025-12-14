@@ -20,6 +20,8 @@ func configKeyForHook(name string) string {
 	switch name {
 	case "post-checkout":
 		return "gw.hooks.postCheckout"
+	case "post-remove":
+		return "gw.hooks.postRemove"
 	default:
 		return "gw.hooks." + name
 	}

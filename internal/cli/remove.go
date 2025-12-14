@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"sort"
 	"strings"
+	"syscall"
 
 	"github.com/sh0o0/gw/internal/gitx"
 	"github.com/spf13/cobra"
@@ -17,21 +19,28 @@ func newRmCmd() *cobra.Command {
 	var force bool
 	var opts fuzzyDisplayOptions
 	var merged bool
+	var hookBackground bool
+	var background bool
+	var pathArg string
 	cmd := &cobra.Command{
 		Use:   "rm [--force] [branch ...]",
 		Short: "Remove worktree(s) by fuzzy select or by branch names",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			removeOpts := removeOptions{force: force, hookBackground: hookBackground, background: background}
+			if pathArg != "" {
+				return removeWorktreeForeground(pathArg, removeOpts)
+			}
 			if merged {
 				if len(args) > 0 {
 					return errors.New("--merged cannot be combined with branch arguments")
 				}
-				return removeMergedInteractive(force, opts)
+				return removeMergedInteractive(removeOpts, opts)
 			}
 			if len(args) > 0 {
 				success := 0
 				var failed []string
 				for _, b := range args {
-					if err := removeWorktreeByBranch(b, force); err != nil {
+					if err := removeWorktreeByBranch(b, removeOpts); err != nil {
 						failed = append(failed, b)
 						fmt.Fprintf(os.Stderr, "✗ Failed to remove worktree for branch: %s\n\n", b)
 					} else {
@@ -45,19 +54,69 @@ func newRmCmd() *cobra.Command {
 				}
 				return nil
 			}
-			return removeInteractive(force, opts)
+			return removeInteractive(removeOpts, opts)
 		},
 	}
 	cmd.Flags().BoolVar(&force, "force", false, "force remove")
 	cmd.Flags().BoolVar(&opts.showPath, "show-path", false, "display worktree path in fuzzy finder")
 	cmd.Flags().BoolVar(&merged, "merged", false, "remove all merged branches")
+	cmd.Flags().BoolVar(&hookBackground, "hook-bg", false, "Run post-remove hook in background")
+	cmd.Flags().BoolVar(&background, "bg", false, "Run removal in background")
+	cmd.Flags().StringVar(&pathArg, "path", "", "Remove worktree by path (internal use)")
+	cmd.Flags().MarkHidden("path")
 	return cmd
 }
 
-func removeWorktreeAtPath(path string, force bool) error {
+type removeOptions struct {
+	force          bool
+	hookBackground bool
+	background     bool
+}
+
+func removeWorktreeAtPath(path string, opts removeOptions) error {
+	if opts.background {
+		return removeWorktreeInBackground(path, opts)
+	}
+	return removeWorktreeForeground(path, opts)
+}
+
+func removeWorktreeInBackground(path string, opts removeOptions) error {
+	args := []string{"rm", "--path", path}
+	if opts.force {
+		args = append(args, "--force")
+	}
+	if opts.hookBackground {
+		args = append(args, "--hook-bg")
+	}
+
+	exe, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to get executable path: %w", err)
+	}
+
+	logFile, err := os.CreateTemp("", "gw-rm-*.log")
+	if err != nil {
+		return fmt.Errorf("failed to create log file: %w", err)
+	}
+	logPath := logFile.Name()
+
+	cmd := exec.Command(exe, args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Stdout = logFile
+	cmd.Stderr = logFile
+	cmd.Stdin = nil
+	if err := cmd.Start(); err != nil {
+		logFile.Close()
+		return fmt.Errorf("failed to start background removal: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "Started background removal for: %s (PID: %d, log: %s)\n", path, cmd.Process.Pid, logPath)
+	return nil
+}
+
+func removeWorktreeForeground(path string, opts removeOptions) error {
 	br, _ := gitx.BranchAt(path)
 	fmt.Fprintf(os.Stderr, "Removing worktree: %s\n", path)
-	if force {
+	if opts.force {
 		if _, err := gitx.Cmd("", "worktree", "remove", "--force", path); err != nil {
 			return err
 		}
@@ -74,10 +133,11 @@ func removeWorktreeAtPath(path string, force bool) error {
 			fmt.Fprintf(os.Stderr, "Successfully deleted branch: %s\n", br)
 		}
 	}
+	runPostRemove(br, path, opts.hookBackground)
 	return nil
 }
 
-func removeInteractive(force bool, opts fuzzyDisplayOptions) error {
+func removeInteractive(rmOpts removeOptions, opts fuzzyDisplayOptions) error {
 	wts, err := gitx.ListWorktrees("")
 	if err != nil {
 		return err
@@ -132,7 +192,7 @@ func removeInteractive(force bool, opts fuzzyDisplayOptions) error {
 	for _, idx := range selectedIdx {
 		e := collection.base[idx]
 		path := e.path
-		if err := removeWorktreeAtPath(path, force); err != nil {
+		if err := removeWorktreeAtPath(path, rmOpts); err != nil {
 			failed = append(failed, path)
 			fmt.Fprintf(os.Stderr, "✗ Failed to remove worktree: %s\n  %v\n\n", path, err)
 			continue
@@ -147,7 +207,7 @@ func removeInteractive(force bool, opts fuzzyDisplayOptions) error {
 	return nil
 }
 
-func removeWorktreeByBranch(branch string, force bool) error {
+func removeWorktreeByBranch(branch string, opts removeOptions) error {
 	p, err := gitx.FindWorktreeByBranch("", branch)
 	if err != nil {
 		return fmt.Errorf("no worktree found for branch: %s", branch)
@@ -156,14 +216,14 @@ func removeWorktreeByBranch(branch string, force bool) error {
 	if current == p {
 		return fmt.Errorf("cannot remove current worktree for branch: %s", branch)
 	}
-	return removeWorktreeAtPath(p, force)
+	return removeWorktreeAtPath(p, opts)
 }
 
 var errSkipRemoval = errors.New("skip removal")
 
 // removeMergedBranches is kept for non-interactive deletion of merged local branches.
 // Currently unused from the CLI but retained for potential scripting.
-func removeMergedBranches(force bool) error {
+func removeMergedBranches(opts removeOptions) error {
 	branches, err := gitx.MergedBranches("")
 	if err != nil {
 		return err
@@ -197,7 +257,7 @@ func removeMergedBranches(force bool) error {
 		if branch == primaryBranch || branch == currentBranch {
 			continue
 		}
-		if err := removeMergedBranch(branch, force, primaryPath, currentPath); err != nil {
+		if err := removeMergedBranch(branch, opts, primaryPath, currentPath); err != nil {
 			if errors.Is(err, errSkipRemoval) {
 				continue
 			}
@@ -215,7 +275,7 @@ func removeMergedBranches(force bool) error {
 	return nil
 }
 
-func removeMergedBranch(branch string, force bool, primaryPath, currentPath string) error {
+func removeMergedBranch(branch string, opts removeOptions, primaryPath, currentPath string) error {
 	if p, err := gitx.FindWorktreeByBranch("", branch); err == nil {
 		if samePath(p, primaryPath) {
 			return errSkipRemoval
@@ -223,10 +283,10 @@ func removeMergedBranch(branch string, force bool, primaryPath, currentPath stri
 		if samePath(p, currentPath) {
 			return errSkipRemoval
 		}
-		return removeWorktreeAtPath(p, force)
+		return removeWorktreeAtPath(p, opts)
 	}
 	flag := "-d"
-	if force {
+	if opts.force {
 		flag = "-D"
 	}
 	if _, err := gitx.Cmd("", "branch", flag, branch); err != nil {
@@ -237,7 +297,7 @@ func removeMergedBranch(branch string, force bool, primaryPath, currentPath stri
 
 // removeMergedInteractive opens a multi-select with all worktrees and defaults to removing
 // those with status MERGED when the user doesn't explicitly select any.
-func removeMergedInteractive(force bool, opts fuzzyDisplayOptions) error {
+func removeMergedInteractive(rmOpts removeOptions, opts fuzzyDisplayOptions) error {
 	wts, err := gitx.ListWorktrees("")
 	if err != nil {
 		return err
@@ -321,7 +381,7 @@ func removeMergedInteractive(force bool, opts fuzzyDisplayOptions) error {
 	for _, idx := range toDelete {
 		e := collection.base[idx]
 		path := e.path
-		if err := removeWorktreeAtPath(path, force); err != nil {
+		if err := removeWorktreeAtPath(path, rmOpts); err != nil {
 			failed = append(failed, path)
 			fmt.Fprintf(os.Stderr, "✗ Failed to remove worktree: %s\n  %v\n\n", path, err)
 			continue
