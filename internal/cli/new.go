@@ -45,7 +45,7 @@ func newNewCmd() *cobra.Command {
 				baseRef, _ = gitx.PrimaryBranch("")
 			}
 
-			prevRev, _ := gitx.Cmd("", "rev-parse", "--verify", "HEAD")''
+			prevRev, _ := gitx.Cmd("", "rev-parse", "--verify", "HEAD")
 			prevRev = strings.TrimSpace(prevRev)
 			prevBranch, _ := gitx.BranchAt(".")
 
