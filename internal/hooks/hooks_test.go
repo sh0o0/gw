@@ -153,37 +153,6 @@ func TestRunHook_shouldPassEnvVariables(t *testing.T) {
 	}
 }
 
-func TestRunHook_shouldWriteLog(t *testing.T) {
-	tDir := t.TempDir()
-
-	cmd := exec.Command("git", "init")
-	cmd.Dir = tDir
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("git init: %v", err)
-	}
-
-	hookCmd := "echo log-test"
-	cmd = exec.Command("git", "config", "--local", "gw.hooks.postCheckout", hookCmd)
-	cmd.Dir = tDir
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("git config: %v", err)
-	}
-
-	ran, err := RunHook(tDir, "post-checkout", nil, Options{Background: false})
-	if !ran || err != nil {
-		t.Fatalf("hook did not run successfully: ran=%v err=%v", ran, err)
-	}
-
-	logPath := LogFile(tDir, "post-checkout")
-	data, err := os.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("failed to read log file: %v", err)
-	}
-	if !strings.Contains(string(data), "log-test") {
-		t.Fatalf("log file should contain 'log-test', got: %s", string(data))
-	}
-}
-
 func TestRunHook_shouldRunInBackground_whenBackgroundOptionSet(t *testing.T) {
 	tDir := t.TempDir()
 

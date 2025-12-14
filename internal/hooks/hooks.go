@@ -91,22 +91,15 @@ func RunHook(worktreePath, name string, env map[string]string, opts Options) (ra
 		envSlice = append(envSlice, k+"="+v)
 	}
 
-	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		return false, err
-	}
-	defer logFile.Close()
-
 	for _, cmdStr := range cmds {
 		if cmdStr == "" {
 			continue
 		}
-		fmt.Fprintf(logFile, "\n=== %s: %s ===\n", time.Now().Format(time.RFC3339), cmdStr)
 		cmd := exec.Command("sh", "-c", cmdStr)
 		cmd.Dir = worktreePath
 		cmd.Env = envSlice
-		cmd.Stdout = logFile
-		cmd.Stderr = logFile
+		cmd.Stdout = os.Stderr
+		cmd.Stderr = os.Stderr
 		cmd.Stdin = nil
 		if err := cmd.Run(); err != nil {
 			return true, err
