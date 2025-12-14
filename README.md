@@ -65,16 +65,16 @@ Hook commands are stored in git config and executed via `sh -c`. Multiple comman
 
 ```bash
 # Add a post-checkout hook
-git config --local --add gw.hook.postCheckout 'echo "switched to $GW_NEW_BRANCH"'
+git config --local --add gw.hooks.postCheckout 'echo "switched to $GW_NEW_BRANCH"'
 
 # Add multiple hooks (executed in order)
-git config --local --add gw.hook.postCheckout 'npm install'
+git config --local --add gw.hooks.postCheckout 'npm install'
 
 # View configured hooks
-git config --local --get-all gw.hook.postCheckout
+git config --local --get-all gw.hooks.postCheckout
 
 # Remove all hooks
-git config --local --unset-all gw.hook.postCheckout
+git config --local --unset-all gw.hooks.postCheckout
 ```
 
 Environment variables available in hooks:

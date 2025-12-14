@@ -10,9 +10,9 @@ import (
 func configKeyForHook(name string) string {
 	switch name {
 	case "post-checkout":
-		return "gw.hook.postCheckout"
+		return "gw.hooks.postCheckout"
 	default:
-		return "gw.hook." + name
+		return "gw.hooks." + name
 	}
 }
 
