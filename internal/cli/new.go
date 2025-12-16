@@ -13,8 +13,10 @@ func newNewCmd() *cobra.Command {
 	var fromRef string
 	var fromCurrent bool
 	var openEditor bool
+	var noEditor bool
 	var editorCmd string
 	var hookBackground bool
+	var hookForeground bool
 	var verbose bool
 
 	cmd := &cobra.Command{
@@ -22,6 +24,10 @@ func newNewCmd() *cobra.Command {
 		Short: "Create new worktree with a new branch",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg := loadConfig()
+
+			effectiveOpenEditor := openEditor || (cfg.NewOpenEditor && !noEditor)
+			effectiveHookBg := hookBackground || (cfg.HooksBackground && !hookForeground)
 			branch := args[0]
 
 			if path, err := gitx.FindWorktreeByBranch("", branch); err == nil && path != "" {
@@ -58,7 +64,7 @@ func newNewCmd() *cobra.Command {
 
 			out.Branch("Created branch %s from %s", out.Highlight(branch), out.Highlight(baseRef))
 
-			if openEditor {
+			if effectiveOpenEditor {
 				editor := resolveEditor(editorCmd)
 				if editor == "" {
 					fmt.Fprintln(cmd.ErrOrStderr(), "Warning: no editor specified, skipping editor open")
@@ -76,7 +82,7 @@ func newNewCmd() *cobra.Command {
 			newRev, _ := gitx.Cmd(p, "rev-parse", "--verify", "HEAD")
 			newRev = strings.TrimSpace(newRev)
 			newBranch, _ := gitx.BranchAt(p)
-			runPostCheckoutWithCWD(prevRev, newRev, prevBranch, newBranch, p, hookBackground)
+			runPostCheckoutWithCWD(prevRev, newRev, prevBranch, newBranch, p, effectiveHookBg)
 
 			return navigateToWorktree(p)
 		},
@@ -85,10 +91,14 @@ func newNewCmd() *cobra.Command {
 	cmd.Flags().StringVar(&fromRef, "from", "", "Create from specific ref (branch, tag, or commit)")
 	cmd.Flags().BoolVar(&fromCurrent, "from-current", false, "Create from current branch")
 	cmd.Flags().BoolVarP(&openEditor, "editor", "e", false, "Open editor after creating worktree")
+	cmd.Flags().BoolVar(&noEditor, "no-editor", false, "Do not open editor (override config)")
 	cmd.Flags().StringVar(&editorCmd, "editor-cmd", "", "Editor command to use (default: $EDITOR)")
 	cmd.Flags().BoolVar(&hookBackground, "hook-bg", false, "Run post-checkout hook in background")
+	cmd.Flags().BoolVar(&hookForeground, "hook-fg", false, "Run post-checkout hook in foreground (override config)")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show each symlink created")
 	cmd.MarkFlagsMutuallyExclusive("from", "from-current")
+	cmd.MarkFlagsMutuallyExclusive("editor", "no-editor")
+	cmd.MarkFlagsMutuallyExclusive("hook-bg", "hook-fg")
 
 	return cmd
 }

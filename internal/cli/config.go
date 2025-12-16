@@ -1,0 +1,124 @@
+package cli
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/sh0o0/gw/internal/gitx"
+	"github.com/spf13/cobra"
+)
+
+const (
+	configKeyNewOpenEditor   = "gw.new.openEditor"
+	configKeyHooksBackground = "gw.hooks.background"
+	configKeyEditor          = "gw.editor"
+)
+
+type gwConfig struct {
+	NewOpenEditor   bool
+	HooksBackground bool
+	Editor          string
+}
+
+func loadConfig() gwConfig {
+	cfg := gwConfig{}
+
+	if v, err := gitx.ConfigGet("", configKeyNewOpenEditor); err == nil {
+		cfg.NewOpenEditor = strings.EqualFold(v, "true")
+	}
+	if v, err := gitx.ConfigGet("", configKeyHooksBackground); err == nil {
+		cfg.HooksBackground = strings.EqualFold(v, "true")
+	}
+	if v, err := gitx.ConfigGet("", configKeyEditor); err == nil {
+		cfg.Editor = v
+	}
+	return cfg
+}
+
+func newConfigCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "config",
+		Short: "Manage gw configuration",
+	}
+
+	cmd.AddCommand(
+		newConfigGetCmd(),
+		newConfigSetCmd(),
+		newConfigListCmd(),
+	)
+
+	return cmd
+}
+
+func newConfigGetCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "get <key>",
+		Short: "Get configuration value",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			key := normalizeConfigKey(args[0])
+			v, err := gitx.ConfigGet("", key)
+			if err != nil {
+				return fmt.Errorf("key not found: %s", args[0])
+			}
+			fmt.Println(v)
+			return nil
+		},
+	}
+}
+
+func newConfigSetCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "set <key> <value>",
+		Short: "Set configuration value",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			key := normalizeConfigKey(args[0])
+			value := args[1]
+			if err := gitx.ConfigSet("", key, value); err != nil {
+				return fmt.Errorf("failed to set config: %w", err)
+			}
+			fmt.Printf("Set %s = %s\n", key, value)
+			return nil
+		},
+	}
+}
+
+func newConfigListCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "list",
+		Short: "List all gw configuration",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			keys := []string{
+				configKeyNewOpenEditor,
+				configKeyHooksBackground,
+				configKeyEditor,
+			}
+			for _, key := range keys {
+				v, err := gitx.ConfigGet("", key)
+				if err != nil {
+					v = "(not set)"
+				}
+				fmt.Printf("%s = %s\n", key, v)
+			}
+			return nil
+		},
+	}
+}
+
+func normalizeConfigKey(key string) string {
+	switch key {
+	case "new.openEditor", "new.open-editor", "openEditor":
+		return configKeyNewOpenEditor
+	case "hooks.background", "hook-bg", "hookBackground":
+		return configKeyHooksBackground
+	case "editor":
+		return configKeyEditor
+	default:
+		if !strings.HasPrefix(key, "gw.") {
+			return "gw." + key
+		}
+		return key
+	}
+}
