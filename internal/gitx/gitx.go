@@ -231,6 +231,32 @@ func ConfigGetAll(cwd, key string) ([]string, error) {
 	return res, nil
 }
 
+type ConfigEntry struct {
+	Key   string
+	Value string
+}
+
+func ConfigGetRegexp(cwd, pattern string) ([]ConfigEntry, error) {
+	out, err := Cmd(cwd, "config", "--get-regexp", pattern)
+	if err != nil {
+		return nil, err
+	}
+	var res []ConfigEntry
+	for _, ln := range strings.Split(out, "\n") {
+		ln = strings.TrimSpace(ln)
+		if ln == "" {
+			continue
+		}
+		parts := strings.SplitN(ln, " ", 2)
+		if len(parts) == 2 {
+			res = append(res, ConfigEntry{Key: parts[0], Value: parts[1]})
+		} else if len(parts) == 1 {
+			res = append(res, ConfigEntry{Key: parts[0], Value: ""})
+		}
+	}
+	return res, nil
+}
+
 func ConfigSet(cwd, key, value string) error {
 	_, err := Cmd(cwd, "config", "--local", key, value)
 	return err

@@ -90,17 +90,13 @@ func newConfigListCmd() *cobra.Command {
 		Short: "List all gw configuration",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			keys := []string{
-				configKeyNewOpenEditor,
-				configKeyHooksBackground,
-				configKeyEditor,
+			configs, err := gitx.ConfigGetRegexp("", "^gw\\.")
+			if err != nil || len(configs) == 0 {
+				fmt.Println("No gw configuration found")
+				return nil
 			}
-			for _, key := range keys {
-				v, err := gitx.ConfigGet("", key)
-				if err != nil {
-					v = "(not set)"
-				}
-				fmt.Printf("%s = %s\n", key, v)
+			for _, kv := range configs {
+				fmt.Printf("%s = %s\n", kv.Key, kv.Value)
 			}
 			return nil
 		},
