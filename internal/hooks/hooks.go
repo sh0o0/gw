@@ -65,7 +65,7 @@ func RunHook(worktreePath, name string, env map[string]string, opts Options) (ra
 				continue
 			}
 			wrappedCmd := fmt.Sprintf(
-				"{ echo ''; echo '=== '%s': '%s' ==='; %s %s; } >> %q 2>&1",
+				"{ echo ''; echo '=== '%s': '%s' ==='; %s %s; echo '=== Completed ==='; } >> %q 2>&1",
 				time.Now().Format(time.RFC3339),
 				cmdStr,
 				envStr,
