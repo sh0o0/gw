@@ -18,10 +18,8 @@ type Options struct {
 
 func configKeyForHook(name string) string {
 	switch name {
-	case "post-checkout":
-		return "gw.hooks.postCheckout"
-	case "post-remove":
-		return "gw.hooks.postRemove"
+	case "post-create":
+		return "gw.hooks.postCreate"
 	default:
 		return "gw.hooks." + name
 	}
@@ -46,12 +44,15 @@ func buildEnvString(env map[string]string) string {
 
 // RunHook executes hook commands from git config.
 // Commands are read from gw.hook.<name> (multi-value) and executed via sh -c.
+// Global hooks (--global) are executed first, then local hooks.
 // Output is written to <worktreePath>/gw-hook-<name>.log.
 // If opts.Background is true, hooks run in a detached process.
 // Returns true if any hook ran/started and error (only for foreground execution).
 func RunHook(worktreePath, name string, env map[string]string, opts Options) (ran bool, err error) {
 	key := configKeyForHook(name)
-	cmds, _ := gitx.ConfigGetAll(worktreePath, key)
+	globalCmds, _ := gitx.ConfigGetAllGlobal(key)
+	localCmds, _ := gitx.ConfigGetAll(worktreePath, key)
+	cmds := append(globalCmds, localCmds...)
 	if len(cmds) == 0 {
 		return false, nil
 	}

@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/sh0o0/gw/internal/gitx"
 	"github.com/sh0o0/gw/internal/worktree"
@@ -50,10 +49,6 @@ func newNewCmd() *cobra.Command {
 				baseRef, _ = gitx.PrimaryBranch("")
 			}
 
-			prevRev, _ := gitx.Cmd("", "rev-parse", "--verify", "HEAD")
-			prevRev = strings.TrimSpace(prevRev)
-			prevBranch, _ := gitx.BranchAt(".")
-
 			p, err := worktree.ComputeWorktreePath("", branch)
 			if err != nil {
 				return err
@@ -79,10 +74,7 @@ func newNewCmd() *cobra.Command {
 				return err
 			}
 
-			newRev, _ := gitx.Cmd(p, "rev-parse", "--verify", "HEAD")
-			newRev = strings.TrimSpace(newRev)
-			newBranch, _ := gitx.BranchAt(p)
-			runPostCheckoutWithCWD(prevRev, newRev, prevBranch, newBranch, p, effectiveHookBg)
+			runPostCreate(branch, p, effectiveHookBg)
 
 			return navigateToWorktree(p)
 		},
@@ -93,8 +85,8 @@ func newNewCmd() *cobra.Command {
 	cmd.Flags().BoolVarP(&openEditor, "editor", "e", false, "Open editor after creating worktree")
 	cmd.Flags().BoolVar(&noEditor, "no-editor", false, "Do not open editor (override config)")
 	cmd.Flags().StringVar(&editorCmd, "editor-cmd", "", "Editor command to use (default: $EDITOR)")
-	cmd.Flags().BoolVar(&hookBackground, "hook-bg", false, "Run post-checkout hook in background")
-	cmd.Flags().BoolVar(&hookForeground, "hook-fg", false, "Run post-checkout hook in foreground (override config)")
+	cmd.Flags().BoolVar(&hookBackground, "hook-bg", false, "Run post-create hook in background")
+	cmd.Flags().BoolVar(&hookForeground, "hook-fg", false, "Run post-create hook in foreground (override config)")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show each symlink created")
 	cmd.MarkFlagsMutuallyExclusive("from", "from-current")
 	cmd.MarkFlagsMutuallyExclusive("editor", "no-editor")
@@ -105,12 +97,16 @@ func newNewCmd() *cobra.Command {
 
 func newAddCmd() *cobra.Command {
 	var verbose bool
+	var hookBackground bool
+	var hookForeground bool
 
 	cmd := &cobra.Command{
 		Use:   "add <branch>",
 		Short: "Create new worktree for an existing branch",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg := loadConfig()
+			effectiveHookBg := hookBackground || (cfg.HooksBackground && !hookForeground)
 			branch := args[0]
 
 			gitx.Cmd("", "fetch", "origin", branch)
@@ -122,10 +118,20 @@ func newAddCmd() *cobra.Command {
 			if _, err := gitx.Cmd("", "worktree", "add", p, branch); err != nil {
 				return err
 			}
-			return postCreateWorktree(p, PostCreateOptions{Verbose: verbose})
+
+			if err := createSymlinks(p, PostCreateOptions{Verbose: verbose}); err != nil {
+				return err
+			}
+
+			runPostCreate(branch, p, effectiveHookBg)
+
+			return navigateToWorktree(p)
 		},
 	}
 
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show each symlink created")
+	cmd.Flags().BoolVar(&hookBackground, "hook-bg", false, "Run post-create hook in background")
+	cmd.Flags().BoolVar(&hookForeground, "hook-fg", false, "Run post-create hook in foreground (override config)")
+	cmd.MarkFlagsMutuallyExclusive("hook-bg", "hook-fg")
 	return cmd
 }

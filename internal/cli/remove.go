@@ -19,18 +19,13 @@ func newRmCmd() *cobra.Command {
 	var force bool
 	var opts fuzzyDisplayOptions
 	var merged bool
-	var hookBackground bool
-	var hookForeground bool
 	var background bool
 	var pathArg string
 	cmd := &cobra.Command{
 		Use:   "rm [--force] [branch ...]",
 		Short: "Remove worktree(s) by fuzzy select or by branch names",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg := loadConfig()
-			effectiveHookBg := hookBackground || (cfg.HooksBackground && !hookForeground)
-
-			removeOpts := removeOptions{force: force, hookBackground: effectiveHookBg, background: background}
+			removeOpts := removeOptions{force: force, background: background}
 			if pathArg != "" {
 				return removeWorktreeForeground(pathArg, removeOpts)
 			}
@@ -64,19 +59,15 @@ func newRmCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&force, "force", false, "force remove")
 	cmd.Flags().BoolVar(&opts.showPath, "show-path", false, "display worktree path in fuzzy finder")
 	cmd.Flags().BoolVar(&merged, "merged", false, "remove all merged branches")
-	cmd.Flags().BoolVar(&hookBackground, "hook-bg", false, "Run post-remove hook in background")
-	cmd.Flags().BoolVar(&hookForeground, "hook-fg", false, "Run post-remove hook in foreground (override config)")
 	cmd.Flags().BoolVar(&background, "bg", false, "Run removal in background")
 	cmd.Flags().StringVar(&pathArg, "path", "", "Remove worktree by path (internal use)")
 	cmd.Flags().MarkHidden("path")
-	cmd.MarkFlagsMutuallyExclusive("hook-bg", "hook-fg")
 	return cmd
 }
 
 type removeOptions struct {
-	force          bool
-	hookBackground bool
-	background     bool
+	force      bool
+	background bool
 }
 
 func removeWorktreeAtPath(path string, opts removeOptions) error {
@@ -90,9 +81,6 @@ func removeWorktreeInBackground(path string, opts removeOptions) error {
 	args := []string{"rm", "--path", path}
 	if opts.force {
 		args = append(args, "--force")
-	}
-	if opts.hookBackground {
-		args = append(args, "--hook-bg")
 	}
 
 	exe, err := os.Executable()
@@ -139,7 +127,6 @@ func removeWorktreeForeground(path string, opts removeOptions) error {
 			out.Success("Deleted branch: %s", br)
 		}
 	}
-	runPostRemove(br, path, opts.hookBackground)
 	return nil
 }
 

@@ -231,6 +231,21 @@ func ConfigGetAll(cwd, key string) ([]string, error) {
 	return res, nil
 }
 
+func ConfigGetAllGlobal(key string) ([]string, error) {
+	out, err := Cmd("", "config", "--global", "--get-all", key)
+	if err != nil {
+		return nil, nil
+	}
+	var res []string
+	for _, ln := range strings.Split(out, "\n") {
+		ln = strings.TrimSpace(ln)
+		if ln != "" {
+			res = append(res, ln)
+		}
+	}
+	return res, nil
+}
+
 type ConfigEntry struct {
 	Key   string
 	Value string

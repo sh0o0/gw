@@ -33,19 +33,19 @@ func TestRunHook_shouldExecuteCommands_whenConfigSet(t *testing.T) {
 	outFile := filepath.Join(tDir, "out.txt")
 	hookCmd := "echo hello > " + outFile
 
-	cmd = exec.Command("git", "config", "--local", "gw.hooks.postCheckout", hookCmd)
+	cmd = exec.Command("git", "config", "--local", "gw.hooks.postCreate", hookCmd)
 	cmd.Dir = tDir
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("git config: %v", err)
 	}
 
 	env := map[string]string{
-		"GW_HOOK_NAME":   "post-checkout",
-		"GW_PREV_BRANCH": "main",
-		"GW_NEW_BRANCH":  "feature",
+		"GW_HOOK_NAME": "post-create",
+		"GW_BRANCH":    "feature",
+		"GW_PATH":      tDir,
 	}
 
-	ran, err := RunHook(tDir, "post-checkout", env, Options{Background: false})
+	ran, err := RunHook(tDir, "post-create", env, Options{Background: false})
 	if !ran || err != nil {
 		t.Fatalf("hook did not run successfully: ran=%v err=%v", ran, err)
 	}
@@ -69,7 +69,7 @@ func TestRunHook_shouldReturnFalse_whenNoConfig(t *testing.T) {
 		t.Fatalf("git init: %v", err)
 	}
 
-	ran, err := RunHook(tDir, "post-checkout", nil, Options{})
+	ran, err := RunHook(tDir, "post-create", nil, Options{})
 	if ran {
 		t.Fatalf("expected hook not to run when no config set")
 	}
@@ -89,19 +89,19 @@ func TestRunHook_shouldExecuteMultipleCommands_whenMultipleConfigValues(t *testi
 
 	outFile := filepath.Join(tDir, "out.txt")
 
-	cmd = exec.Command("git", "config", "--local", "--add", "gw.hooks.postCheckout", "echo first >> "+outFile)
+	cmd = exec.Command("git", "config", "--local", "--add", "gw.hooks.postCreate", "echo first >> "+outFile)
 	cmd.Dir = tDir
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("git config add 1: %v", err)
 	}
 
-	cmd = exec.Command("git", "config", "--local", "--add", "gw.hooks.postCheckout", "echo second >> "+outFile)
+	cmd = exec.Command("git", "config", "--local", "--add", "gw.hooks.postCreate", "echo second >> "+outFile)
 	cmd.Dir = tDir
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("git config add 2: %v", err)
 	}
 
-	ran, err := RunHook(tDir, "post-checkout", nil, Options{Background: false})
+	ran, err := RunHook(tDir, "post-create", nil, Options{Background: false})
 	if !ran || err != nil {
 		t.Fatalf("hook did not run successfully: ran=%v err=%v", ran, err)
 	}
@@ -126,19 +126,19 @@ func TestRunHook_shouldPassEnvVariables(t *testing.T) {
 	}
 
 	outFile := filepath.Join(tDir, "out.txt")
-	hookCmd := "echo $GW_NEW_BRANCH > " + outFile
+	hookCmd := "echo $GW_BRANCH > " + outFile
 
-	cmd = exec.Command("git", "config", "--local", "gw.hooks.postCheckout", hookCmd)
+	cmd = exec.Command("git", "config", "--local", "gw.hooks.postCreate", hookCmd)
 	cmd.Dir = tDir
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("git config: %v", err)
 	}
 
 	env := map[string]string{
-		"GW_NEW_BRANCH": "my-feature",
+		"GW_BRANCH": "my-feature",
 	}
 
-	ran, err := RunHook(tDir, "post-checkout", env, Options{Background: false})
+	ran, err := RunHook(tDir, "post-create", env, Options{Background: false})
 	if !ran || err != nil {
 		t.Fatalf("hook did not run successfully: ran=%v err=%v", ran, err)
 	}
@@ -165,13 +165,13 @@ func TestRunHook_shouldRunInBackground_whenBackgroundOptionSet(t *testing.T) {
 	outFile := filepath.Join(tDir, "out.txt")
 	hookCmd := "echo background-test > " + outFile
 
-	cmd = exec.Command("git", "config", "--local", "gw.hooks.postCheckout", hookCmd)
+	cmd = exec.Command("git", "config", "--local", "gw.hooks.postCreate", hookCmd)
 	cmd.Dir = tDir
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("git config: %v", err)
 	}
 
-	ran, err := RunHook(tDir, "post-checkout", nil, Options{Background: true})
+	ran, err := RunHook(tDir, "post-create", nil, Options{Background: true})
 	if !ran {
 		t.Fatalf("hook did not start: ran=%v", ran)
 	}
