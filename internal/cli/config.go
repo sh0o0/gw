@@ -12,12 +12,14 @@ const (
 	configKeyNewOpenEditor   = "gw.new.openEditor"
 	configKeyHooksBackground = "gw.hooks.background"
 	configKeyEditor          = "gw.editor"
+	configKeyAI              = "gw.ai"
 )
 
 type gwConfig struct {
 	NewOpenEditor   bool
 	HooksBackground bool
 	Editor          string
+	AI              string
 }
 
 func loadConfig() gwConfig {
@@ -31,6 +33,9 @@ func loadConfig() gwConfig {
 	}
 	if v, err := gitx.ConfigGet("", configKeyEditor); err == nil {
 		cfg.Editor = v
+	}
+	if v, err := gitx.ConfigGet("", configKeyAI); err == nil {
+		cfg.AI = v
 	}
 	return cfg
 }
@@ -111,6 +116,8 @@ func normalizeConfigKey(key string) string {
 		return configKeyHooksBackground
 	case "editor":
 		return configKeyEditor
+	case "ai":
+		return configKeyAI
 	default:
 		if !strings.HasPrefix(key, "gw.") {
 			return "gw." + key

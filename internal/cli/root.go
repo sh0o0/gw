@@ -35,6 +35,7 @@ func newRootCmd() *cobra.Command {
 		newSyncCmd(),
 		newShellInitCmd(),
 		newEditorCmd(),
+		newAICmd(),
 		newConfigCmd(),
 	)
 
