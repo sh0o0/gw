@@ -17,12 +17,7 @@ type Options struct {
 }
 
 func configKeyForHook(name string) string {
-	switch name {
-	case "post-create":
-		return "gw.hooks.postCreate"
-	default:
-		return "gw.hooks." + name
-	}
+	return "gw.hooks." + name
 }
 
 func logFilePath(worktreePath, name string) string {

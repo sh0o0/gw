@@ -33,7 +33,7 @@ func TestRunHook_shouldExecuteCommands_whenConfigSet(t *testing.T) {
 	outFile := filepath.Join(tDir, "out.txt")
 	hookCmd := "echo hello > " + outFile
 
-	cmd = exec.Command("git", "config", "--local", "gw.hooks.postCreate", hookCmd)
+	cmd = exec.Command("git", "config", "--local", "gw.hooks.post-create", hookCmd)
 	cmd.Dir = tDir
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("git config: %v", err)
@@ -89,13 +89,13 @@ func TestRunHook_shouldExecuteMultipleCommands_whenMultipleConfigValues(t *testi
 
 	outFile := filepath.Join(tDir, "out.txt")
 
-	cmd = exec.Command("git", "config", "--local", "--add", "gw.hooks.postCreate", "echo first >> "+outFile)
+	cmd = exec.Command("git", "config", "--local", "--add", "gw.hooks.post-create", "echo first >> "+outFile)
 	cmd.Dir = tDir
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("git config add 1: %v", err)
 	}
 
-	cmd = exec.Command("git", "config", "--local", "--add", "gw.hooks.postCreate", "echo second >> "+outFile)
+	cmd = exec.Command("git", "config", "--local", "--add", "gw.hooks.post-create", "echo second >> "+outFile)
 	cmd.Dir = tDir
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("git config add 2: %v", err)
@@ -128,7 +128,7 @@ func TestRunHook_shouldPassEnvVariables(t *testing.T) {
 	outFile := filepath.Join(tDir, "out.txt")
 	hookCmd := "echo $GW_BRANCH > " + outFile
 
-	cmd = exec.Command("git", "config", "--local", "gw.hooks.postCreate", hookCmd)
+	cmd = exec.Command("git", "config", "--local", "gw.hooks.post-create", hookCmd)
 	cmd.Dir = tDir
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("git config: %v", err)
@@ -165,7 +165,7 @@ func TestRunHook_shouldRunInBackground_whenBackgroundOptionSet(t *testing.T) {
 	outFile := filepath.Join(tDir, "out.txt")
 	hookCmd := "echo background-test > " + outFile
 
-	cmd = exec.Command("git", "config", "--local", "gw.hooks.postCreate", hookCmd)
+	cmd = exec.Command("git", "config", "--local", "gw.hooks.post-create", hookCmd)
 	cmd.Dir = tDir
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("git config: %v", err)

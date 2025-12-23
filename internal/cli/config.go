@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	configKeyNewOpenEditor   = "gw.new.openEditor"
+	configKeyNewOpenEditor   = "gw.new.open-editor"
 	configKeyHooksBackground = "gw.hooks.background"
 	configKeyEditor          = "gw.editor"
 	configKeyAI              = "gw.ai"
@@ -110,10 +110,12 @@ func newConfigListCmd() *cobra.Command {
 
 func normalizeConfigKey(key string) string {
 	switch key {
-	case "new.openEditor", "new.open-editor", "openEditor":
+	case "new.open-editor", "open-editor":
 		return configKeyNewOpenEditor
-	case "hooks.background", "hook-bg", "hookBackground":
+	case "hooks.background", "hooks-background":
 		return configKeyHooksBackground
+	case "hooks.post-create", "post-create":
+		return "gw.hooks.post-create"
 	case "editor":
 		return configKeyEditor
 	case "ai":
