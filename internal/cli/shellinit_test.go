@@ -35,20 +35,20 @@ func TestBuildShellInitScriptUnsupported(t *testing.T) {
 	}
 }
 
-func TestShellInitContainsAliases(t *testing.T) {
+func TestShellInitContainsNavigationCommands(t *testing.T) {
 	fish, err := buildShellInitScript("fish")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !strings.Contains(fish, "case switch sw checkout co restore") {
-		t.Fatalf("fish script should handle aliases 'sw' and 'co'")
+	if !strings.Contains(fish, "case go new add mv") {
+		t.Fatalf("fish script should handle navigation commands")
 	}
 
 	bash, err := buildShellInitScript("bash")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !strings.Contains(bash, "switch|sw|checkout|co|restore") {
-		t.Fatalf("bash script should handle aliases 'sw' and 'co'")
+	if !strings.Contains(bash, "go|new|add|mv") {
+		t.Fatalf("bash script should handle navigation commands")
 	}
 }
