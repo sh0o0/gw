@@ -1,6 +1,6 @@
 # gw (Go)
 
-Git worktree power tool, re-implemented in Go to mirror the existing fish function `gw`.
+Git worktree power tool.
 
 ## Install
 
