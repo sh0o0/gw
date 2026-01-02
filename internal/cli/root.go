@@ -37,6 +37,7 @@ func newRootCmd() *cobra.Command {
 		newEditorCmd(),
 		newAICmd(),
 		newConfigCmd(),
+		newTuiCmd(),
 	)
 
 	return cmd

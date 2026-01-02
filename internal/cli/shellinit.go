@@ -55,6 +55,22 @@ func buildShellInitScript(shell string) (string, error) {
 }
 
 const fishShellInitScript = `function gw --description 'Git worktree power tool'
+    if test (count $argv) -gt 0; and test $argv[1] = tui
+        set -l tmpfile (mktemp)
+        env GW_CALLER_CWD=$PWD command gw $argv > $tmpfile
+        set -l exit_status $status
+        if test $exit_status -eq 0
+            set -l raw (cat $tmpfile)
+            if test -n "$raw"
+                set -l target (string replace -r '\n*$' '' -- $raw)
+                if string match -rq '^/' -- $target; and test -d "$target"
+                    cd "$target"
+                end
+            end
+        end
+        rm -f $tmpfile
+        return $exit_status
+    end
     set -l raw (env GW_CALLER_CWD=$PWD command gw $argv | string collect)
     set -l status_list $pipestatus
     set -l exit_status $status_list[1]
@@ -79,6 +95,25 @@ const fishShellInitScript = `function gw --description 'Git worktree power tool'
 end`
 
 const bashShellInitScript = `gw() {
+  if [ $# -gt 0 ] && [ "$1" = "tui" ]; then
+    local _gw_tmpfile
+    _gw_tmpfile="$(mktemp)"
+    env GW_CALLER_CWD="$PWD" command gw "$@" > "$_gw_tmpfile"
+    local _gw_status=$?
+    if [ "$_gw_status" -eq 0 ]; then
+      local _gw_out
+      _gw_out="$(cat "$_gw_tmpfile")"
+      if [ -n "$_gw_out" ]; then
+        local _gw_target
+        _gw_target="$(printf '%s\n' "$_gw_out" | tail -n 1)"
+        if [ -n "$_gw_target" ] && [ "${_gw_target#/}" != "$_gw_target" ] && [ -d "$_gw_target" ]; then
+          builtin cd "$_gw_target" || { rm -f "$_gw_tmpfile"; return $?; }
+        fi
+      fi
+    fi
+    rm -f "$_gw_tmpfile"
+    return $_gw_status
+  fi
   local _gw_out
   _gw_out="$(env GW_CALLER_CWD="$PWD" command gw "$@")"
   local _gw_status=$?
