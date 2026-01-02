@@ -10,23 +10,32 @@ import (
 
 var (
 	modalStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("170")).
-			Padding(1, 2)
+			Border(lipgloss.DoubleBorder()).
+			BorderForeground(lipgloss.Color("#7D56F4")).
+			Padding(1, 3).
+			Background(lipgloss.Color("#282A36"))
 
 	modalTitleStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("170")).
+			Foreground(lipgloss.Color("#FF79C6")).
 			MarginBottom(1)
+
+	labelStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#6272A4"))
 
 	buttonStyle = lipgloss.NewStyle().
 			Padding(0, 2).
-			Foreground(lipgloss.Color("245"))
+			Foreground(lipgloss.Color("#6272A4"))
 
 	activeButtonStyle = lipgloss.NewStyle().
 				Padding(0, 2).
 				Bold(true).
-				Foreground(lipgloss.Color("170"))
+				Foreground(lipgloss.Color("#282A36")).
+				Background(lipgloss.Color("#50FA7B"))
+
+	cancelButtonStyle = lipgloss.NewStyle().
+				Padding(0, 2).
+				Foreground(lipgloss.Color("#FF5555"))
 )
 
 type InputModal struct {
@@ -81,14 +90,16 @@ func (m InputModal) Update(msg tea.Msg) (InputModal, tea.Cmd) {
 func (m InputModal) View() string {
 	var b strings.Builder
 
-	b.WriteString(modalTitleStyle.Render(m.Title))
+	b.WriteString(modalTitleStyle.Render("✨ " + m.Title))
 	b.WriteString("\n\n")
+	b.WriteString(labelStyle.Render("Branch name:"))
+	b.WriteString("\n")
 	b.WriteString(m.Input.View())
 	b.WriteString("\n\n")
 
-	cancelBtn := buttonStyle.Render("[Esc] Cancel")
-	confirmBtn := activeButtonStyle.Render("[Enter] Create")
-	b.WriteString(cancelBtn + "  " + confirmBtn)
+	cancelBtn := cancelButtonStyle.Render("✗ Esc")
+	confirmBtn := activeButtonStyle.Render(" ✓ Enter ")
+	b.WriteString(cancelBtn + "    " + confirmBtn)
 
 	return modalStyle.Render(b.String())
 }

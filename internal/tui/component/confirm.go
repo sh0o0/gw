@@ -8,11 +8,41 @@ import (
 )
 
 var (
-	warningStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("214"))
+	confirmModalStyle = lipgloss.NewStyle().
+				Border(lipgloss.DoubleBorder()).
+				BorderForeground(lipgloss.Color("#FF5555")).
+				Padding(1, 3).
+				Background(lipgloss.Color("#282A36"))
 
-	dangerStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("196"))
+	dangerTitleStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("#FF5555"))
+
+	warningStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FFB86C"))
+
+	messageStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#F8F8F2"))
+
+	detailStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#6272A4")).
+			Italic(true)
+
+	cancelSelectedStyle = lipgloss.NewStyle().
+				Padding(0, 2).
+				Bold(true).
+				Foreground(lipgloss.Color("#282A36")).
+				Background(lipgloss.Color("#6272A4"))
+
+	deleteSelectedStyle = lipgloss.NewStyle().
+				Padding(0, 2).
+				Bold(true).
+				Foreground(lipgloss.Color("#282A36")).
+				Background(lipgloss.Color("#FF5555"))
+
+	unselectedBtnStyle = lipgloss.NewStyle().
+				Padding(0, 2).
+				Foreground(lipgloss.Color("#6272A4"))
 )
 
 type ConfirmModal struct {
@@ -65,28 +95,31 @@ func (m ConfirmModal) Update(msg tea.Msg) (ConfirmModal, tea.Cmd) {
 func (m ConfirmModal) View() string {
 	var b strings.Builder
 
-	b.WriteString(dangerStyle.Render(m.Title))
+	b.WriteString(dangerTitleStyle.Render("⚠ " + m.Title))
 	b.WriteString("\n\n")
-	b.WriteString(m.Message)
+	b.WriteString(messageStyle.Render(m.Message))
 	b.WriteString("\n\n")
 
 	if m.Detail != "" {
-		b.WriteString(warningStyle.Render(m.Detail))
+		b.WriteString(detailStyle.Render(m.Detail))
 		b.WriteString("\n\n")
 	}
 
-	cancelBtn := buttonStyle.Render("[Cancel]")
-	confirmBtn := buttonStyle.Render("[Delete]")
+	var cancelBtn, confirmBtn string
 
 	if m.selected == 0 {
-		cancelBtn = activeButtonStyle.Render("[Cancel]")
+		cancelBtn = cancelSelectedStyle.Render(" ✗ Cancel ")
+		confirmBtn = unselectedBtnStyle.Render("Delete")
 	} else {
-		confirmBtn = dangerStyle.Bold(true).Padding(0, 2).Render("[Delete]")
+		cancelBtn = unselectedBtnStyle.Render("Cancel")
+		confirmBtn = deleteSelectedStyle.Render(" ✗ Delete ")
 	}
 
-	b.WriteString(cancelBtn + "  " + confirmBtn)
+	b.WriteString(cancelBtn + "    " + confirmBtn)
+	b.WriteString("\n\n")
+	b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#6272A4")).Render("← → to select, Enter to confirm, Esc to cancel"))
 
-	return modalStyle.Render(b.String())
+	return confirmModalStyle.Render(b.String())
 }
 
 func (m ConfirmModal) Confirmed() bool {

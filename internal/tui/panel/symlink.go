@@ -11,11 +11,27 @@ import (
 )
 
 var (
-	symlinkStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("45"))
+	symlinkActiveStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#50FA7B")).
+				Bold(true)
+
+	symlinkInactiveStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#888888"))
 
 	targetStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("245"))
+			Foreground(lipgloss.Color("#6272A4")).
+			Italic(true)
+
+	cursorStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FF79C6")).
+			Bold(true)
+
+	selectedStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#BD93F9")).
+			Bold(true)
+
+	notLinkedStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FFB86C"))
 )
 
 type SymlinkItem struct {
@@ -115,26 +131,34 @@ func matchGlob(pattern, path string) bool {
 func RenderSymlinkItem(idx int, item SymlinkItem, selected bool, maxPathLen int) string {
 	var b strings.Builder
 
-	prefix := "  "
 	if selected {
-		prefix = "> "
+		b.WriteString(cursorStyle.Render("❯ "))
+	} else {
+		b.WriteString("  ")
 	}
 
-	b.WriteString(prefix)
-
+	pathDisplay := item.Path
 	if item.IsSymlink {
-		b.WriteString(symlinkStyle.Render(item.Path))
+		if selected {
+			b.WriteString(selectedStyle.Render(pathDisplay))
+		} else {
+			b.WriteString(symlinkActiveStyle.Render(pathDisplay))
+		}
 	} else {
-		b.WriteString(item.Path)
+		if selected {
+			b.WriteString(selectedStyle.Render(pathDisplay))
+		} else {
+			b.WriteString(symlinkInactiveStyle.Render(pathDisplay))
+		}
 	}
 
 	padding := maxPathLen - len(item.Path) + 2
 	b.WriteString(strings.Repeat(" ", padding))
 
 	if item.IsSymlink {
-		b.WriteString(targetStyle.Render("-> " + item.Target))
+		b.WriteString(targetStyle.Render("🔗 → " + item.Target))
 	} else if item.Target != "" {
-		b.WriteString(targetStyle.Render("(not linked)"))
+		b.WriteString(notLinkedStyle.Render("○ not linked"))
 	}
 
 	return b.String()

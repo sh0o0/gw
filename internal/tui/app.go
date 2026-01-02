@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	"github.com/sh0o0/gw/internal/fsutil"
 	"github.com/sh0o0/gw/internal/gitx"
 	"github.com/sh0o0/gw/internal/hooks"
@@ -561,29 +562,31 @@ func (m Model) View() string {
 	}
 
 	if m.err != nil {
-		return fmt.Sprintf("Error: %v\n\nPress q to quit.", m.err)
+		errBox := errorStyle.Render(fmt.Sprintf("✗ Error: %v", m.err))
+		hint := helpStyle.Render("\nPress q to quit")
+		return errBox + hint
 	}
 
 	if len(m.worktrees) == 0 {
-		return "Loading worktrees...\n"
+		return loadingStyle.Render("⏳ Loading worktrees...\n")
 	}
 
 	var b strings.Builder
 
 	b.WriteString(m.renderHeader())
-	b.WriteString("\n")
+	b.WriteString("\n\n")
 	b.WriteString(m.renderTabs())
-	b.WriteString("\n")
+	b.WriteString("\n\n")
 
 	if m.filtering {
-		b.WriteString("Filter: ")
+		b.WriteString(filterStyle.Render("🔍 Filter: "))
 		b.WriteString(m.filterInput.View())
-		b.WriteString("\n")
+		b.WriteString("\n\n")
 	} else if m.filterText != "" {
-		b.WriteString(helpStyle.Render(fmt.Sprintf("Filter: %s (Esc to clear)", m.filterText)))
-		b.WriteString("\n")
+		b.WriteString(filterStyle.Render(fmt.Sprintf("🔍 Filter: %s ", m.filterText)))
+		b.WriteString(helpStyle.Render("(Esc to clear)"))
+		b.WriteString("\n\n")
 	}
-	b.WriteString("\n")
 
 	switch m.activePanel {
 	case WorktreePanel:
@@ -595,7 +598,7 @@ func (m Model) View() string {
 	b.WriteString("\n\n")
 
 	if m.message != "" {
-		b.WriteString(m.message)
+		b.WriteString(successMsgStyle.Render("● " + m.message))
 		b.WriteString("\n\n")
 	}
 
@@ -620,7 +623,7 @@ func (m Model) View() string {
 			m.width, m.height,
 			lipgloss.Center, lipgloss.Center,
 			modalView,
-			lipgloss.WithWhitespaceBackground(lipgloss.Color("235")),
+			lipgloss.WithWhitespaceBackground(lipgloss.Color("#1E1E2E")),
 		)
 	}
 
@@ -628,21 +631,20 @@ func (m Model) View() string {
 }
 
 func (m Model) renderHeader() string {
-	title := titleStyle.Render("GW - Git Worktree Manager")
-	return title
+	return titleStyle.Render("  GW - Git Worktree Manager")
 }
 
 func (m Model) renderTabs() string {
 	var tabs []string
 
-	tab1 := "[1] Worktrees"
+	tab1 := " 1  Worktrees"
 	if m.activePanel == WorktreePanel {
 		tabs = append(tabs, activeTabStyle.Render(tab1))
 	} else {
 		tabs = append(tabs, inactiveTabStyle.Render(tab1))
 	}
 
-	tab2 := "[2] Symlinks"
+	tab2 := " 2  Symlinks"
 	if m.activePanel == SymlinkPanel {
 		tabs = append(tabs, activeTabStyle.Render(tab2))
 	} else {
@@ -695,30 +697,37 @@ func (m Model) renderWorktreeItem(idx int, wt WorktreeItem, maxBranchLen int) st
 	var b strings.Builder
 
 	isSelected := idx == m.selected
-	prefix := "  "
+
 	if isSelected {
-		prefix = "> "
+		b.WriteString(cursorStyle.Render("❯ "))
+	} else {
+		b.WriteString("  ")
 	}
 
-	branchDisplay := fmt.Sprintf("[%s]", wt.Branch)
+	branchName := wt.Branch
 	padding := maxBranchLen - len(wt.Branch) + 2
 
-	b.WriteString(prefix)
-	b.WriteString(branchDisplay)
+	if isSelected {
+		b.WriteString(branchStyle.Render(branchName))
+	} else if wt.IsCurrent {
+		b.WriteString(currentWorktreeStyle.Render(branchName))
+	} else {
+		b.WriteString(branchName)
+	}
 	b.WriteString(strings.Repeat(" ", padding))
 
 	if wt.IsPrimary {
-		b.WriteString(primaryStyle.Render("(primary)"))
+		b.WriteString(primaryStyle.Render("★ primary"))
 	} else if wt.Status != "" {
 		switch wt.Status {
 		case "OPEN":
-			b.WriteString(statusOpenStyle.Render("OPEN"))
+			b.WriteString(statusOpenStyle.Render("● OPEN"))
 		case "IN PROGRESS":
-			b.WriteString(statusInProgressStyle.Render("IN PROGRESS"))
+			b.WriteString(statusInProgressStyle.Render("◐ IN PROGRESS"))
 		case "MERGED":
-			b.WriteString(statusMergedStyle.Render("MERGED"))
+			b.WriteString(statusMergedStyle.Render("✓ MERGED"))
 		case "DRAFT":
-			b.WriteString(statusDraftStyle.Render("DRAFT"))
+			b.WriteString(statusDraftStyle.Render("○ DRAFT"))
 		default:
 			b.WriteString(wt.Status)
 		}
@@ -726,7 +735,7 @@ func (m Model) renderWorktreeItem(idx int, wt WorktreeItem, maxBranchLen int) st
 
 	if wt.IsCurrent {
 		b.WriteString("  ")
-		b.WriteString(primaryStyle.Render("(current)"))
+		b.WriteString(currentWorktreeStyle.Render("← current"))
 	}
 
 	if isSelected {
@@ -757,11 +766,27 @@ func (m Model) renderSymlinkList() string {
 }
 
 func (m Model) renderShortHelp() string {
-	keys := []string{
-		"↑/k:up", "↓/j:down", "enter:switch",
-		"n:new", "d:delete", "/:search", "?:help", "q:quit",
+	type helpItem struct {
+		key  string
+		desc string
 	}
-	return helpStyle.Render(strings.Join(keys, "  "))
+
+	items := []helpItem{
+		{"↑/k", "up"},
+		{"↓/j", "down"},
+		{"enter", "switch"},
+		{"n", "new"},
+		{"d", "delete"},
+		{"/", "search"},
+		{"?", "help"},
+		{"q", "quit"},
+	}
+
+	var parts []string
+	for _, item := range items {
+		parts = append(parts, helpKeyStyle.Render(item.key)+helpDescStyle.Render(":"+item.desc))
+	}
+	return strings.Join(parts, "  ")
 }
 
 func (m Model) SelectedPath() string {
@@ -769,17 +794,19 @@ func (m Model) SelectedPath() string {
 }
 
 func Run() (string, error) {
-	ttyFile, err := os.OpenFile("/dev/tty", os.O_WRONLY, 0)
+	ttyFile, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
 	if err != nil {
 		return "", fmt.Errorf("failed to open /dev/tty: %w", err)
 	}
 	defer ttyFile.Close()
 
+	lipgloss.SetColorProfile(termenv.TrueColor)
+
 	m := NewModel()
 	p := tea.NewProgram(
 		m,
 		tea.WithAltScreen(),
-		tea.WithInputTTY(),
+		tea.WithInput(ttyFile),
 		tea.WithOutput(ttyFile),
 	)
 
