@@ -83,6 +83,30 @@ gw --help
   - `--ai`, `-a <cmd>`: AI CLI command to use (default: gw.ai config)
   - `--show-path`: Display worktree path in fuzzy finder
 
+### Interactive TUI
+
+- `gw tui`: Launch lazygit-style interactive TUI
+
+TUIモードでは、常駐型のインターフェースでworktreeを管理できます。
+
+**キーバインド**
+
+| Key | Action |
+|-----|--------|
+| `j` / `↓` | Move down |
+| `k` / `↑` | Move up |
+| `Enter` | Switch to selected worktree |
+| `n` | Create new worktree |
+| `d` | Delete worktree |
+| `1` | Worktree panel |
+| `2` | Symlink panel |
+| `l` | Create symlink (in Symlink panel) |
+| `u` | Remove symlink (in Symlink panel) |
+| `s` | Sync symlinks (in Symlink panel) |
+| `/` | Filter/search |
+| `?` | Show help |
+| `q` | Quit |
+
 ### Configuration Management
 
 - `gw config get <key>`: Get configuration value
