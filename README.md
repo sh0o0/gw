@@ -10,22 +10,34 @@ Git worktree power tool.
 - Git
 - インタラクティブ選択は内蔵UI（go-fuzzyfinder）で動作します。追加の外部ツールは不要です。
 
-インストール（スクリプトのみ）
+インストール（go install）
+
+推奨（リポジトリをcloneせずにインストール）
+
+```bash
+go install github.com/sh0o0/gw/cmd/gw@latest
+```
+
+リポジトリをcloneしてインストール（開発者向け）
 
 ```fish
 # リポジトリを取得
 git clone https://github.com/sh0o0/gw.git
 cd gw
 
-# デフォルト: ~/.local/bin/gw にインストール
-sh scripts/install.sh
-
-# インストール先を変えたい場合（例: /usr/local）
-env PREFIX=/usr/local sh scripts/install.sh
+# インストール
+go install ./cmd/gw
 
 # 動作確認
 gw --help
 ```
+
+インストール先について
+
+- `GOBIN` が設定されている場合: `$GOBIN/gw`
+- `GOBIN` が未設定の場合: `$(go env GOPATH)/bin/gw`（よくある例: `~/go/bin/gw`）
+
+`gw` が見つからない場合は、上記ディレクトリが `PATH` に含まれているか確認してください。
 
 ## Usage
 
