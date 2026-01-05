@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"os"
@@ -70,6 +71,18 @@ type removeOptions struct {
 	background bool
 }
 
+func confirmForceRemove(path string) bool {
+	out.Warn("Worktree has uncommitted changes: %s", out.Highlight(path))
+	fmt.Print("Force remove? [y/N]: ")
+	reader := bufio.NewReader(os.Stdin)
+	input, err := reader.ReadString('\n')
+	if err != nil {
+		return false
+	}
+	input = strings.TrimSpace(strings.ToLower(input))
+	return input == "y" || input == "yes"
+}
+
 func removeWorktreeAtPath(path string, opts removeOptions) error {
 	if opts.background {
 		return removeWorktreeInBackground(path, opts)
@@ -116,7 +129,13 @@ func removeWorktreeForeground(path string, opts removeOptions) error {
 		}
 	} else {
 		if _, err := gitx.Cmd("", "worktree", "remove", path); err != nil {
-			return err
+			if confirmForceRemove(path) {
+				if _, err := gitx.Cmd("", "worktree", "remove", "--force", path); err != nil {
+					return err
+				}
+			} else {
+				return err
+			}
 		}
 	}
 	if br != "" && br != "HEAD" {
