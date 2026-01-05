@@ -99,6 +99,9 @@ func newAddCmd() *cobra.Command {
 	var verbose bool
 	var hookBackground bool
 	var hookForeground bool
+	var openEditor bool
+	var noEditor bool
+	var editorCmd string
 
 	cmd := &cobra.Command{
 		Use:   "add <branch>",
@@ -107,6 +110,7 @@ func newAddCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := loadConfig()
 			effectiveHookBg := hookBackground || (cfg.HooksBackground && !hookForeground)
+			effectiveOpenEditor := openEditor || (cfg.AddOpenEditor && !noEditor)
 			branch := args[0]
 
 			gitx.Cmd("", "fetch", "origin", branch)
@@ -117,6 +121,17 @@ func newAddCmd() *cobra.Command {
 			}
 			if _, err := gitx.Cmd("", "worktree", "add", p, branch); err != nil {
 				return err
+			}
+
+			if effectiveOpenEditor {
+				editor := resolveEditor(editorCmd)
+				if editor == "" {
+					fmt.Fprintln(cmd.ErrOrStderr(), "Warning: no editor specified, skipping editor open")
+				} else {
+					if err := openEditorCmd(editor, p); err != nil {
+						fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to open editor: %v\n", err)
+					}
+				}
 			}
 
 			if err := createSymlinks(p, PostCreateOptions{Verbose: verbose}); err != nil {
@@ -132,6 +147,10 @@ func newAddCmd() *cobra.Command {
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show each symlink created")
 	cmd.Flags().BoolVar(&hookBackground, "hook-bg", false, "Run post-create hook in background")
 	cmd.Flags().BoolVar(&hookForeground, "hook-fg", false, "Run post-create hook in foreground (override config)")
+	cmd.Flags().BoolVarP(&openEditor, "editor", "e", false, "Open editor after creating worktree")
+	cmd.Flags().BoolVar(&noEditor, "no-editor", false, "Do not open editor (override config)")
+	cmd.Flags().StringVar(&editorCmd, "editor-cmd", "", "Editor command to use (default: $EDITOR)")
 	cmd.MarkFlagsMutuallyExclusive("hook-bg", "hook-fg")
+	cmd.MarkFlagsMutuallyExclusive("editor", "no-editor")
 	return cmd
 }

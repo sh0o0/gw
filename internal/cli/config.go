@@ -10,6 +10,7 @@ import (
 
 const (
 	configKeyNewOpenEditor   = "gw.new.open-editor"
+	configKeyAddOpenEditor   = "gw.add.open-editor"
 	configKeyHooksBackground = "gw.hooks.background"
 	configKeyEditor          = "gw.editor"
 	configKeyAI              = "gw.ai"
@@ -17,6 +18,7 @@ const (
 
 type gwConfig struct {
 	NewOpenEditor   bool
+	AddOpenEditor   bool
 	HooksBackground bool
 	Editor          string
 	AI              string
@@ -27,6 +29,9 @@ func loadConfig() gwConfig {
 
 	if v, err := gitx.ConfigGet("", configKeyNewOpenEditor); err == nil {
 		cfg.NewOpenEditor = strings.EqualFold(v, "true")
+	}
+	if v, err := gitx.ConfigGet("", configKeyAddOpenEditor); err == nil {
+		cfg.AddOpenEditor = strings.EqualFold(v, "true")
 	}
 	if v, err := gitx.ConfigGet("", configKeyHooksBackground); err == nil {
 		cfg.HooksBackground = strings.EqualFold(v, "true")
@@ -110,8 +115,10 @@ func newConfigListCmd() *cobra.Command {
 
 func normalizeConfigKey(key string) string {
 	switch key {
-	case "new.open-editor", "open-editor":
+	case "new.open-editor":
 		return configKeyNewOpenEditor
+	case "add.open-editor":
+		return configKeyAddOpenEditor
 	case "hooks.background", "hooks-background":
 		return configKeyHooksBackground
 	case "hooks.post-create", "post-create":
