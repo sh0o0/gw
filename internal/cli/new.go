@@ -38,12 +38,18 @@ func newNewCmd() *cobra.Command {
 			}
 
 			baseRef := fromRef
+			var symlinkSource string
 			if fromCurrent {
 				currentBranch, err := gitx.BranchAt(".")
 				if err != nil {
 					return fmt.Errorf("failed to get current branch: %w", err)
 				}
 				baseRef = currentBranch
+				symlinkSource, _ = gitx.Root("")
+			} else if fromRef != "" {
+				if wtPath, err := gitx.FindWorktreeByBranch("", fromRef); err == nil {
+					symlinkSource = wtPath
+				}
 			}
 			if baseRef == "" {
 				baseRef, _ = gitx.PrimaryBranch("")
@@ -70,7 +76,7 @@ func newNewCmd() *cobra.Command {
 				}
 			}
 
-			if err := createSymlinks(p, PostCreateOptions{Verbose: verbose}); err != nil {
+			if err := createSymlinks(p, PostCreateOptions{Verbose: verbose, SymlinkSource: symlinkSource}); err != nil {
 				return err
 			}
 

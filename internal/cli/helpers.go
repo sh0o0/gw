@@ -71,13 +71,18 @@ func navigateToRelativePath(worktreePath, rel string) error {
 }
 
 type PostCreateOptions struct {
-	Verbose bool
+	Verbose       bool
+	SymlinkSource string
 }
 
 func createSymlinks(p string, opts PostCreateOptions) error {
-	root, err := gitx.Root("")
-	if err != nil {
-		return err
+	root := opts.SymlinkSource
+	if root == "" {
+		var err error
+		root, err = primaryWorktreePath()
+		if err != nil {
+			return err
+		}
 	}
 	symlinkOpts := worktree.SymlinkOptions{Verbose: opts.Verbose}
 	count, err := worktree.CreateSymlinksFromGitignored(root, p, symlinkOpts)
