@@ -175,6 +175,11 @@ func (e *worktreeEntry) display(opts fuzzyDisplayOptions, maxBranchLen int) stri
 	}
 
 	var b strings.Builder
+	if e.isPrimary {
+		b.WriteString("★ ")
+	} else {
+		b.WriteString("  ")
+	}
 	b.WriteString("[")
 	b.WriteString(e.branch)
 	b.WriteString("]")
