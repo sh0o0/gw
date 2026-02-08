@@ -14,6 +14,8 @@ const (
 	configKeyHooksBackground = "gw.hooks.background"
 	configKeyEditor          = "gw.editor"
 	configKeyAI              = "gw.ai"
+	configKeyWorktreeBase    = "gw.worktree.base"
+	configKeyWorktreeFlat    = "gw.worktree.flat"
 )
 
 type gwConfig struct {
@@ -127,6 +129,10 @@ func normalizeConfigKey(key string) string {
 		return configKeyEditor
 	case "ai":
 		return configKeyAI
+	case "worktree.base":
+		return configKeyWorktreeBase
+	case "worktree.flat":
+		return configKeyWorktreeFlat
 	default:
 		if !strings.HasPrefix(key, "gw.") {
 			return "gw." + key

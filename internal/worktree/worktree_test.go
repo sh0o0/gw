@@ -110,6 +110,84 @@ func TestCreateSymlink_should_resolve_symlink_chain(t *testing.T) {
 	}
 }
 
+func TestWorktreeBasePath_should_use_config_when_set(t *testing.T) {
+	customBase := "/tmp/my-worktrees"
+	base := worktreeBasePathWithConfig(customBase, false, "/home/user", "/home/user/project", "github.com", "owner", "repo", true)
+	expected := filepath.Join(customBase, "github.com", "owner", "repo")
+	if base != expected {
+		t.Errorf("expected %s, got %s", expected, base)
+	}
+}
+
+func TestWorktreeBasePath_should_use_config_for_local_repos(t *testing.T) {
+	customBase := "/tmp/my-worktrees"
+	base := worktreeBasePathWithConfig(customBase, false, "/home/user", "/home/user/project", "", "", "", false)
+	if !strings.HasPrefix(base, customBase) {
+		t.Errorf("expected path to start with %s, got %s", customBase, base)
+	}
+}
+
+func TestWorktreeBasePath_should_fallback_to_default_when_no_config(t *testing.T) {
+	home := "/home/user"
+	base := worktreeBasePathWithConfig("", false, home, "/home/user/project", "github.com", "owner", "repo", true)
+	expected := filepath.Join(home, ".worktrees", "github.com", "owner", "repo")
+	if base != expected {
+		t.Errorf("expected %s, got %s", expected, base)
+	}
+}
+
+func TestWorktreeBasePath_should_expand_tilde(t *testing.T) {
+	home := "/home/user"
+	base := worktreeBasePathWithConfig("~/worktrees", false, home, "/home/user/project", "github.com", "owner", "repo", true)
+	expected := filepath.Join(home, "worktrees", "github.com", "owner", "repo")
+	if base != expected {
+		t.Errorf("expected %s, got %s", expected, base)
+	}
+}
+
+func TestWorktreeBasePath_should_skip_namespace_when_flat(t *testing.T) {
+	customBase := "/tmp/my-worktrees"
+	base := worktreeBasePathWithConfig(customBase, true, "/home/user", "/home/user/project", "github.com", "owner", "repo", true)
+	if base != customBase {
+		t.Errorf("expected %s, got %s", customBase, base)
+	}
+}
+
+func TestWorktreeBasePath_should_skip_local_prefix_when_flat(t *testing.T) {
+	customBase := "/tmp/my-worktrees"
+	base := worktreeBasePathWithConfig(customBase, true, "/home/user", "/home/user/project", "", "", "", false)
+	if base != customBase {
+		t.Errorf("expected %s, got %s", customBase, base)
+	}
+}
+
+func TestWorktreeBasePath_should_skip_namespace_with_default_base_when_flat(t *testing.T) {
+	home := "/home/user"
+	base := worktreeBasePathWithConfig("", true, home, "/home/user/project", "github.com", "owner", "repo", true)
+	expected := filepath.Join(home, ".worktrees")
+	if base != expected {
+		t.Errorf("expected %s, got %s", expected, base)
+	}
+}
+
+func TestWorktreeBasePath_should_resolve_relative_path_from_root(t *testing.T) {
+	root := "/home/user/dev/myproject"
+	base := worktreeBasePathWithConfig(".worktrees", false, "/home/user", root, "github.com", "owner", "repo", true)
+	expected := filepath.Join(root, ".worktrees", "github.com", "owner", "repo")
+	if base != expected {
+		t.Errorf("expected %s, got %s", expected, base)
+	}
+}
+
+func TestWorktreeBasePath_should_resolve_relative_flat_from_root(t *testing.T) {
+	root := "/home/user/dev/myproject"
+	base := worktreeBasePathWithConfig(".worktrees", true, "/home/user", root, "github.com", "owner", "repo", true)
+	expected := filepath.Join(root, ".worktrees")
+	if base != expected {
+		t.Errorf("expected %s, got %s", expected, base)
+	}
+}
+
 // extract parsing core so test doesn't shell out
 func parseRemoteURLString(u string) (string, string, string, bool, error) {
 	// copy from ParseRemoteURL without git call

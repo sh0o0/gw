@@ -77,16 +77,57 @@ func ParseRemoteURL(cwd string) (domain, org, repo string, has bool, err error) 
 	return "", "", "", false, fmt.Errorf("unsupported remote: %s", u)
 }
 
+func worktreeBasePathWithConfig(configBase string, flat bool, home, root, domain, org, repo string, hasRemote bool) string {
+	base := filepath.Join(home, ".worktrees")
+	if configBase != "" {
+		switch {
+		case strings.HasPrefix(configBase, "~/"):
+			configBase = filepath.Join(home, configBase[2:])
+		case !filepath.IsAbs(configBase):
+			configBase = filepath.Join(root, configBase)
+		}
+		base = configBase
+	}
+	if flat {
+		return base
+	}
+	if hasRemote {
+		return filepath.Join(base, domain, org, repo)
+	}
+	return filepath.Join(base, "local")
+}
+
+func primaryRoot(cwd string) (string, error) {
+	commonDir, err := gitx.CommonGitDir(cwd)
+	if err != nil {
+		return gitx.Root(cwd)
+	}
+	// commonDir is typically {primary}/.git
+	if filepath.Base(commonDir) == ".git" {
+		return filepath.Dir(commonDir), nil
+	}
+	return gitx.Root(cwd)
+}
+
 func WorktreeBasePath(cwd string) (string, error) {
-	root, err := gitx.Root(cwd)
+	root, err := primaryRoot(cwd)
 	if err != nil {
 		return "", err
 	}
+	home := os.Getenv("HOME")
+	configBase, _ := gitx.ConfigGet(cwd, "gw.worktree.base")
+	flatStr, _ := gitx.ConfigGet(cwd, "gw.worktree.flat")
+	flat := strings.EqualFold(flatStr, "true")
+
 	if d, o, r, has, _ := ParseRemoteURL(cwd); has {
-		return filepath.Join(os.Getenv("HOME"), ".worktrees", d, o, r), nil
+		return worktreeBasePathWithConfig(configBase, flat, home, root, d, o, r, true), nil
 	}
-	rel := strings.TrimPrefix(root, os.Getenv("HOME")+"/")
-	return filepath.Join(os.Getenv("HOME"), ".worktrees", "local", rel), nil
+	if flat {
+		return worktreeBasePathWithConfig(configBase, flat, home, root, "", "", "", false), nil
+	}
+	rel := strings.TrimPrefix(root, home+"/")
+	p := worktreeBasePathWithConfig(configBase, flat, home, root, "", "", "", false)
+	return filepath.Join(p, rel), nil
 }
 
 func ComputeWorktreePath(cwd, branch string) (string, error) {
