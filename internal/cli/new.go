@@ -64,6 +64,7 @@ func newNewCmd() *cobra.Command {
 			}
 
 			out.Branch("Created branch %s from %s", out.Highlight(branch), out.Highlight(baseRef))
+			out.Folder("Worktree at %s", out.Highlight(p))
 
 			if effectiveOpenEditor {
 				editor := resolveEditor(editorCmd)
@@ -128,6 +129,8 @@ func newAddCmd() *cobra.Command {
 			if _, err := gitx.Cmd("", "worktree", "add", p, branch); err != nil {
 				return err
 			}
+
+			out.Folder("Worktree at %s", out.Highlight(p))
 
 			if effectiveOpenEditor {
 				editor := resolveEditor(editorCmd)
