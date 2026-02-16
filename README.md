@@ -73,6 +73,11 @@ gw --help
 - `gw unlink <path>`: Replace symlink with real file/dir
 - `gw sync`: Sync symlinks from primary worktree to current worktree
   - `--verbose`, `-v`: Show each symlink created
+- `gw setup`: Run post-create setup (symlinks + hooks) on current worktree
+  - `--verbose`, `-v`: Show each symlink created
+  - `--hook-bg`: Run post-create hook in background
+  - `--hook-fg`: Run post-create hook in foreground (override config)
+  - `--no-hooks`: Skip post-create hooks
 
 ### Editor & AI Integration
 
